@@ -4,6 +4,14 @@
 
 > Bring your local DeepSeek Harness WebUI to your phone — over LAN by QR code, over WAN through any frp tunnel.
 
+## 截图
+
+| 手机端首屏 | 会话界面（移动端适配） |
+| --- | --- |
+| ![首屏](docs/app-home.jpg) | ![会话](docs/app-chat.jpg) |
+
+右上角的圆球是**实时网络延迟**（绿 <150ms / 黄 <400ms / 红更慢），点一下进 App 设置。
+
 ## 它做了什么
 
 | 能力 | 说明 |
@@ -70,4 +78,5 @@ powershell -ExecutionPolicy Bypass -File build.ps1 -VersionCode 10 -VersionName 
 
 ## 许可
 
-MIT
+本项目自己的代码：**MIT**（见 `LICENSE`）。
+仓库里另有两个第三方文件（ZXing 的 Apache-2.0 jar、qrcode-generator 的 MIT 源码），逐项声明与许可全文见 **`THIRD-PARTY.md`**。
