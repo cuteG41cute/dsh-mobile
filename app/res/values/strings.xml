@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DSH 手机端</string>
+    <string name="retry">重试</string>
+    <string name="ball_desc">悬浮球：点击打开设置，长按刷新页面</string>
+    <string name="error_title">连接不上服务器</string>
+    <string name="error_hint">请确认\n1) 电脑上的 DSH 手机接入桥已启动（桌面快捷方式「启动 DSH 手机接入桥」）\n2) 手机与电脑在同一个 Wi-Fi\n3) 服务器地址填写正确（在悬浮球 → 设置里修改）</string>
+
+    <string name="settings_title">设置</string>
+    <string name="settings_server">服务器地址</string>
+    <string name="settings_server_hint">例如 http://192.168.1.23:8099</string>
+    <string name="settings_server_help">电脑上 dsh-mobile-bridge 的地址；改完点「保存」（返回后自动重新连接）</string>
+    <string name="settings_keep_on">保持屏幕常亮</string>
+    <string name="settings_keep_on_help">聊天时不让手机自动息屏</string>
+    <string name="settings_actions">快捷操作</string>
+    <string name="settings_sidebar">项目 / 会话列表（展开或收起）</string>
+    <string name="settings_reload">刷新页面</string>
+    <string name="settings_browser">在系统浏览器中打开</string>
+    <string name="settings_about">关于</string>
+    <string name="settings_save">保存</string>
+    <string name="settings_cancel">取消</string>
+    <string name="toast_saved">已保存</string>
+    <string name="toast_ball_hint">点一下打开设置，长按刷新</string>
+
+    <string name="settings_scan">扫码连接</string>
+    <string name="settings_gallery">从相册里的二维码图片连接</string>
+    <string name="settings_scan_help">扫电脑上「设置 → 手机端」里的二维码，自动填好地址并重连（相机拍一张即可）</string>
+    <string name="scan_ok">已连接：%1$s</string>
+    <string name="scan_failed">没识别到二维码：让二维码占满取景框、对准再拍一张（也可以先截图，再用「从相册」）</string>
+    <string name="scan_not_address">扫到的内容不是服务器地址：%1$s</string>
+    <string name="scan_no_camera">这台设备没有可用的相机应用，试试「从相册」</string>
+    <string name="scan_no_gallery">没有可用的相册应用</string>
+</resources>

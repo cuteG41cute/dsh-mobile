@@ -1,0 +1,20 @@
+# 运行时状态（含设备台账、接入口令、外网地址）—— 不要提交
+device-settings.json
+device-settings.json.bak-*
+bridge.log
+acme/
+acme-state/
+acme-renew.log
+
+# 签名密钥与构建产物
+keystore/
+app/keystore/
+app/build/
+app/dist/*.idsig
+*.jks
+*.keystore
+
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db
+*.swp

@@ -1,0 +1,219 @@
+/* dsh-mobile-tweaks.css —— 由 dsh-mobile-bridge 注入到 WebUI 页面（仅窄屏生效）
+ *
+ * 参照 DeepSeek 官方 App 的移动端形态做纯样式/交互补丁（不碰产品代码、不改产品状态）：
+ *  1) 常驻左轨（56px）隐藏 → 内容占满整屏；顶栏左上角注入 ☰ 汉堡按钮，点开才是「抽屉式」侧栏；
+ *  2) 侧栏展开时浮层 + 半透明遮罩（点遮罩或点会话都会收回）；
+ *  3) 设置面板竖排；
+ *  4) 桌面专属按钮（在资源管理器打开 / 打开方式）隐藏；
+ *  5) 三个插件开关收进「插件」药丸 → 竖排悬浮面板（fixed，不影响顶栏）。
+ */
+@media (max-width: 720px) {
+  /* 1) 三栏网格是产品用内联 style 设的（56px minmax(0,1fr) 0px）：
+   *    把第一列轨道改成 0，内容就能占满整屏（此前用 display:none 会让网格整体左移、中间栏被塞进 56px）。 */
+  div[class*="_frame"] { grid-template-columns: 0px minmax(0px, 1fr) 0px !important; }
+  /* 显式钉住各自列：否则侧栏一旦脱离网格（fixed 抽屉），后面的列会整体前移、中间栏被挤没了 */
+  div[class*="_frame"] > div[class*="_sidebarCol"] { grid-column: 1 !important; }
+  div[class*="_frame"] > div[class*="_centerCol"] { grid-column: 2 !important; }
+  div[class*="_frame"] > div[class*="_rightbarCol"] { grid-column: 3 !important; }
+  div[class*="_handle"] { display: none !important; }
+  body:not(.dshm-sidebar-open) div[class*="_sidebarCol"] { overflow: hidden !important; }
+  body:not(.dshm-sidebar-open) div[class*="_titleRow"] { padding-left: 46px !important; }
+
+  /* 2) 抽屉：脱离网格、浮在内容之上（内容宽度不变，和官方 App 一样） */
+  body.dshm-sidebar-open div[class*="_sidebarCol"] {
+    position: fixed !important;
+    z-index: 40 !important;
+    top: 0; bottom: 0; left: 0;
+    width: min(300px, 78vw) !important;
+    max-width: 78vw !important;
+    overflow-y: auto !important;
+    box-shadow: 0 0 24px rgba(0, 0, 0, .55);
+  }
+  #dshm-scrim {
+    position: fixed;
+    top: 0; right: 0; bottom: 0; left: 0;
+    z-index: 35;
+    background: rgba(0, 0, 0, .45);
+  }
+
+  /* 3) 设置面板：竖排 */
+  div[role="dialog"][aria-modal="true"] {
+    flex-direction: column !important;
+    width: calc(100vw - 12px) !important;
+    max-width: calc(100vw - 12px) !important;
+  }
+  div[role="dialog"][aria-modal="true"] > nav {
+    width: 100% !important;
+    max-width: none !important;
+    flex: 0 0 auto !important;
+  }
+  div[role="dialog"][aria-modal="true"] > nav > div:last-child {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+  div[role="dialog"][aria-modal="true"] > div {
+    width: 100% !important;
+    max-width: none !important;
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+  }
+  div[role="dialog"] * { min-width: 0 !important; }
+  div[role="dialog"] label, div[role="dialog"] span { overflow-wrap: normal !important; }
+
+  /* 4) 会话顶栏瘦身（把空间让给「打开右侧边栏」等按钮） */
+  /* 4a) 会话标题（当前 crumb）：最多 4 个字，超出省略 */
+  nav[class*="_crumbs"] button[class*="crumbCurrent"] {
+    max-width: 4.4em !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    display: block !important;
+    text-align: left !important;
+  }
+  /* 4b) 其余 crumb（如 lineage 的「PTC 模式」）：只留图标，不要文字 */
+  nav[class*="_crumbs"] button:not([class*="crumbCurrent"]),
+  nav[class*="_crumbs"] span[class*="crumb"]:not([class*="crumbCurrent"]) {
+    font-size: 0 !important;
+    padding: 0 4px !important;
+  }
+  nav[class*="_crumbs"] button:not([class*="crumbCurrent"]) svg,
+  nav[class*="_crumbs"] span[class*="crumb"]:not([class*="crumbCurrent"]) svg {
+    width: 15px !important;
+    height: 15px !important;
+  }
+  /* 4c) 顶栏里的下拉触发器（后台任务 / 子代理…）：只留图标 + 箭头，文字隐藏，
+   *     它们自带的下拉面板不受影响（点一下就展开完整内容）。 */
+  /* 触发器的文字藏在 span 里（span 自带字号，所以隐藏 span 本身，而不是给按钮 font-size:0）；
+   * 注意后台任务/子代理这类 chip 在 `_headerActions`，插件 chip 才在 `_headerUtilities`。 */
+  div[class*="_headerActions"] button[aria-expanded],
+  div[class*="_headerUtilities"] button[aria-expanded] {
+    gap: 0 !important;
+    padding: 0 8px !important;
+  }
+  div[class*="_headerActions"] button[aria-expanded] > span,
+  div[class*="_headerUtilities"] button[aria-expanded] > span { display: none !important; }
+  div[class*="_headerActions"] button[aria-expanded] svg,
+  div[class*="_headerUtilities"] button[aria-expanded] svg {
+    width: 14px !important;
+    height: 14px !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  /* 4f) agent 预设 chip（如「PTC 模式」）：只留图标，文字隐藏（它自带 title 长说明，点开由悬浮面板展示） */
+  div[class*="_headerActions"] span[class*="_label"] {
+    font-size: 0 !important;
+    min-width: 0 !important;
+  }
+  div[class*="_headerActions"] span[class*="_label"] svg {
+    width: 16px !important;
+    height: 16px !important;
+    display: block !important;
+    visibility: visible !important;
+  }
+  /* 4g) 把顶栏工具区（⋯）往左让 56px，空出来的位置给「插件」药丸，
+   *     这样它就是夹在 ⋯ 和「打开右侧边栏」之间，不需要另起一行。 */
+  div[class*="_headerUtilities"] { margin-right: 56px !important; }
+
+  /* 4e) 手机端用不了的功能直接隐藏：
+   *     · 添加工作区（需要桌面目录选择器）
+   *     · 截图按钮（我们自己的插件，依赖 getDisplayMedia，WebView 里不可用） */
+  button[aria-label*="添加工作区"],
+  button[aria-label*="新建工作区"],
+  button[aria-label*="Add workspace" i],
+  [data-dsh-screenshot="button"] {
+    display: none !important;
+  }
+
+  /* 4d) 被压缩项点开后的悬浮信息面板（由 JS 填充内容） */
+  #dshm-info {
+    position: fixed;
+    z-index: 62;
+    right: 8px;
+    max-width: 78vw;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--dsw-alias-divider, rgba(128, 128, 128, .35));
+    background: var(--dsw-specific-sidebar-fill, rgba(18, 18, 18, .95));
+    color: var(--dsw-alias-label-primary, #eee);
+    font-size: 13px;
+    line-height: 20px;
+    word-break: break-all;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .5);
+  }
+
+  /* 5) 桌面专属按钮 */
+  div[class*="_headerUtilities"] div[class*="_split"],
+  button[aria-label*="打开方式"],
+  button[aria-label*="文件资源管理器"],
+  button[aria-label*="Open with" i],
+  button[aria-label*="file explorer" i],
+  button[aria-label*="Reveal in" i] { display: none !important; }
+
+  /* 5) ☰ 汉堡按钮（顶栏左上角，替代常驻轨道） */
+  #dshm-menu {
+    position: fixed;
+    z-index: 62;
+    width: 38px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--dsw-alias-label-primary, #e8e8e8);
+    font-size: 18px;
+    line-height: 30px;
+    text-align: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #dshm-menu:active { background: rgba(128, 128, 128, .18); }
+
+  /* 6) 「插件」药丸 + 悬浮面板 */
+  #dshm-plugin-toggle {
+    position: fixed;
+    z-index: 61;
+    font: inherit;
+    font-size: 12px;
+    line-height: 18px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--dsw-alias-divider, rgba(128, 128, 128, .35));
+    background: var(--dsw-specific-sidebar-fill, rgba(18, 18, 18, .78));
+    color: var(--dsw-alias-label-secondary, #aaa);
+    cursor: pointer;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .35);
+  }
+  /* 左抽屉打开：药丸跟着被遮住（连同插件面板一起收起）；☰ 也隐藏（由 JS 设 display） */
+  body.dshm-sidebar-open #dshm-plugin-toggle,
+  body.dshm-sidebar-open [data-dshm-chip] { display: none !important; }
+
+  /* 右侧面板（文件/预览）打开：专心预览 —— ☰、插件药丸、插件面板全部收起 */
+  body.dshm-rightbar-open #dshm-menu,
+  body.dshm-rightbar-open #dshm-plugin-toggle,
+  body.dshm-rightbar-open [data-dshm-chip],
+  body.dshm-rightbar-open #dshm-info { display: none !important; }
+
+  #dshm-plugin-toggle.dshm-open {
+    color: var(--dsw-alias-label-primary, #eee);
+    border-color: var(--dsw-static-deepseek-500, #4d6bfe);
+  }
+  #dshm-plugin-toggle.dshm-pill-good { color: #34d399; }
+  #dshm-plugin-toggle.dshm-pill-warn { color: #fbbf24; }
+  #dshm-plugin-toggle.dshm-pill-bad { color: #f87171; }
+  #dshm-plugin-toggle.dshm-pill-off { color: #9ca3af; }
+  body:not(.dshm-plugins-open) [data-dshm-chip] { display: none !important; }
+  body.dshm-plugins-open [data-dshm-chip] {
+    position: fixed !important;
+    right: 8px !important;
+    left: auto !important;
+    z-index: 60 !important;
+    width: 168px !important;
+    justify-content: flex-start !important;
+    background: var(--dsw-specific-sidebar-fill, rgba(18, 18, 18, .92)) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .45) !important;
+  }
+}

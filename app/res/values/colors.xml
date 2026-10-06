@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#FF0F1418</color>
+    <color name="brand">#FF14B8A6</color>
+    <color name="brand_dark">#FF0D1216</color>
+    <color name="ic_launcher_background">#FFF5F5F5</color>
+    <color name="overlay_btn">#66000000</color>
+    <color name="error_text">#FFE5E7EB</color>
+</resources>
