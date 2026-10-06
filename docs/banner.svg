@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-label="DSH 手机端 —— 把本机 DeepSeek Harness 接入手机">
+  <title>DSH 手机端</title>
+  <desc>用手机通过局域网或 frp 隧道访问本机 DeepSeek Harness WebUI 的开源客户端。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1015"/>
+      <stop offset="0.55" stop-color="#101a22"/>
+      <stop offset="1" stop-color="#0c2727"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#14b8a6"/>
+      <stop offset="1" stop-color="#4d6bfe"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.34" r="0.55">
+      <stop offset="0" stop-color="#14b8a6" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#14b8a6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect width="1280" height="640" fill="url(#glow)"/>
+
+  <g font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif" fill="#e6edf3">
+    <!-- 左上：标题区 -->
+    <g transform="translate(78,86)">
+      <rect x="0" y="-26" width="232" height="32" rx="16" fill="#14b8a6" fill-opacity="0.14" stroke="#14b8a6" stroke-opacity="0.5"/>
+      <text x="16" y="-5" font-size="14" fill="#5eead4">DeepSeek Harness 客户端</text>
+
+      <text x="0" y="72" font-size="58" font-weight="700" letter-spacing="1">DSH 手机端</text>
+      <text x="2" y="112" font-size="19" fill="#8b98a5" letter-spacing="3">D S H &#160; M O B I L E</text>
+
+      <text x="0" y="174" font-size="23" fill="#c9d4e0">把本机 DeepSeek Harness 的 WebUI 接到手机上用</text>
+
+      <g font-size="18" fill="#b9c6d3">
+        <g transform="translate(0,222)">
+          <circle cx="7" cy="-6" r="6" fill="url(#accent)"/>
+          <text x="28" y="0">局域网扫码即用，反向代理零依赖（Node）</text>
+        </g>
+        <g transform="translate(0,262)">
+          <circle cx="7" cy="-6" r="6" fill="url(#accent)"/>
+          <text x="28" y="0">外观 / 字号 / 语言 按设备隔离，电脑不受影响</text>
+        </g>
+        <g transform="translate(0,302)">
+          <circle cx="7" cy="-6" r="6" fill="url(#accent)"/>
+          <text x="28" y="0">悬浮球显示实时网络延迟，弱网一眼可见</text>
+        </g>
+        <g transform="translate(0,342)">
+          <circle cx="7" cy="-6" r="6" fill="url(#accent)"/>
+          <text x="28" y="0">外网经任意 frp 隧道接入：接入口令 + 设备认证</text>
+        </g>
+      </g>
+
+      <g transform="translate(0,410)" font-size="15">
+        <rect x="0" y="-24" width="132" height="34" rx="17" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.12"/>
+        <text x="20" y="-2" fill="#9fb0c0">MIT License</text>
+        <rect x="146" y="-24" width="202" height="34" rx="17" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.12"/>
+        <text x="166" y="-2" fill="#9fb0c0">零 npm 依赖 · Node ≥ 18</text>
+      </g>
+
+      <g transform="translate(0,470)">
+        <rect x="0" y="-24" width="386" height="40" rx="10" fill="#000000" fill-opacity="0.32" stroke="#ffffff" stroke-opacity="0.09"/>
+        <text x="18" y="1" font-size="15" font-family="'Cascadia Mono','Consolas',monospace" fill="#7fd8c8">$</text>
+        <text x="38" y="1" font-size="15" font-family="'Cascadia Mono','Consolas',monospace" fill="#cfe6e0">node bridge.cjs&#160;&#160;</text>
+        <text x="196" y="1" font-size="15" fill="#6f8190">→ 手机扫码</text>
+      </g>
+    </g>
+
+    <!-- 右侧：电脑 → 隧道 → 手机 -->
+    <g transform="translate(660,190)">
+      <!-- 电脑 -->
+      <text x="100" y="34" font-size="14" text-anchor="middle" fill="#7d8c99">电脑 · 本机</text>
+      <rect x="0" y="50" width="200" height="140" rx="14" fill="#0f1a20" stroke="#2b3a44"/>
+      <rect x="13" y="64" width="174" height="98" rx="8" fill="#16242c"/>
+      <rect x="28" y="80" width="74" height="9" rx="4.5" fill="#2f4650"/>
+      <rect x="28" y="98" width="132" height="8" rx="4" fill="#24363f"/>
+      <rect x="28" y="114" width="104" height="8" rx="4" fill="#24363f"/>
+      <rect x="28" y="136" width="56" height="15" rx="7.5" fill="#14b8a6" fill-opacity="0.35"/>
+      <rect x="-20" y="188" width="240" height="12" rx="6" fill="#22323b"/>
+
+      <!-- 隧道 -->
+      <path d="M225 194 H 350" stroke="#4d6bfe" stroke-opacity="0.8" stroke-width="3" stroke-dasharray="9 8" fill="none"/>
+      <rect x="238" y="179" width="100" height="30" rx="15" fill="#101a22" stroke="#4d6bfe" stroke-opacity="0.55"/>
+      <text x="288" y="199" font-size="14" text-anchor="middle" fill="#a9b8ff">隧道 / frp</text>
+
+      <!-- 手机 -->
+      <g transform="translate(370,-20)">
+        <rect x="0" y="0" width="150" height="300" rx="24" fill="#0f1a20" stroke="#2b3a44" stroke-width="2"/>
+        <rect x="9" y="11" width="132" height="278" rx="16" fill="#141f27"/>
+        <rect x="56" y="19" width="38" height="6" rx="3" fill="#28353d"/>
+        <rect x="22" y="44" width="58" height="20" rx="10" fill="#ffffff" fill-opacity="0.08"/>
+        <rect x="22" y="76" width="104" height="9" rx="4.5" fill="#2b3d47"/>
+        <rect x="22" y="92" width="82" height="9" rx="4.5" fill="#2b3d47"/>
+        <rect x="22" y="116" width="104" height="42" rx="11" fill="#14b8a6" fill-opacity="0.18" stroke="#14b8a6" stroke-opacity="0.35"/>
+        <rect x="33" y="130" width="70" height="7" rx="3.5" fill="#5eead4" fill-opacity="0.7"/>
+        <rect x="33" y="144" width="46" height="7" rx="3.5" fill="#5eead4" fill-opacity="0.45"/>
+        <rect x="22" y="174" width="92" height="9" rx="4.5" fill="#2b3d47"/>
+        <rect x="22" y="190" width="60" height="9" rx="4.5" fill="#2b3d47"/>
+        <rect x="22" y="240" width="106" height="34" rx="17" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.1"/>
+        <!-- 悬浮球：实时延迟 -->
+        <circle cx="120" cy="226" r="21" fill="#0b1015" stroke="#34d399" stroke-opacity="0.75" stroke-width="2"/>
+        <text x="120" y="232" font-size="15" text-anchor="middle" font-weight="700" fill="#34d399" font-family="'Segoe UI',sans-serif">42</text>
+        <text x="75" y="322" font-size="14" text-anchor="middle" fill="#7d8c99">手机 · 局域网 / 外网</text>
+      </g>
+    </g>
+  </g>
+
+  <rect x="0" y="632" width="1280" height="8" fill="url(#accent)"/>
+</svg>

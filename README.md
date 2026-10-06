@@ -1,5 +1,7 @@
 # DSH 手机端（DeepSeek Harness Mobile）
 
+![DSH 手机端 —— 把本机 DeepSeek Harness 接入手机](docs/banner.svg)
+
 把本机的 **DeepSeek Harness** WebUI 接到手机上用：局域网扫码即用，需要时再通过任意 frp 隧道从外网接入。
 
 > Bring your local DeepSeek Harness WebUI to your phone — over LAN by QR code, over WAN through any frp tunnel.
