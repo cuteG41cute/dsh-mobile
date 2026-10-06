@@ -88,6 +88,16 @@ powershell -ExecutionPolicy Bypass -File build.ps1 -VersionCode 10 -VersionName 
 - `/api/settings/describe` 在新版 DSH 上已不存在，因此「按设备隔离」改走页面注入（见 `bridge/README.md`）；
 - 语言切换在页面加载时解析，改完需刷新一次。
 
+## 宣传图
+
+分享用（矢量源文件在 `docs/`，PNG 版同目录）：
+
+| 横版 1280×640 | 竖版 1080×1920 |
+| --- | --- |
+| <img src="docs/banner.svg" width="380" alt="横版宣传图"> | <img src="docs/poster.svg" width="200" alt="竖版宣传图（含仓库二维码）"> |
+
+`banner.png` 可直接用作 GitHub 社交预览图；`poster.png` 底部的二维码指向本仓库（已用 ZXing 实测可扫）。
+
 ## 许可
 
 本项目自己的代码：**MIT**（见 `LICENSE`）。

@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img" aria-label="DSH 手机端 —— 把本机 DeepSeek Harness 接入手机">
+  <title>DSH 手机端</title>
+  <desc>用手机通过局域网或 frp 隧道访问本机 DeepSeek Harness WebUI 的开源客户端。竖版宣传图，底部二维码指向 GitHub 仓库。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.7" y2="1">
+      <stop offset="0" stop-color="#0b1015"/>
+      <stop offset="0.5" stop-color="#101a22"/>
+      <stop offset="1" stop-color="#0c2727"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#14b8a6"/>
+      <stop offset="1" stop-color="#4d6bfe"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.28" r="0.55">
+      <stop offset="0" stop-color="#14b8a6" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#14b8a6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <rect width="1080" height="1920" fill="url(#glow)"/>
+
+  <g font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif" fill="#e6edf3" text-anchor="middle">
+    <rect x="403" y="96" width="274" height="38" rx="19" fill="#14b8a6" fill-opacity="0.14" stroke="#14b8a6" stroke-opacity="0.5"/>
+    <text x="540" y="121" font-size="16" fill="#5eead4">DeepSeek Harness 客户端</text>
+
+    <text x="540" y="278" font-size="96" font-weight="700" letter-spacing="2">DSH 手机端</text>
+    <text x="544" y="336" font-size="22" fill="#8b98a5" letter-spacing="7">D S H &#160; M O B I L E</text>
+
+    <text x="540" y="424" font-size="27" fill="#c9d4e0">把本机 DeepSeek Harness 的 WebUI 接到手机上用</text>
+    <text x="540" y="464" font-size="17" fill="#6f8190" font-family="'Segoe UI',sans-serif">Bring your local DeepSeek Harness to your phone</text>
+
+    <text x="540" y="536" font-size="15" fill="#7d8c99">电脑 · 本机</text>
+    <g transform="translate(410,556)">
+      <rect x="0" y="0" width="260" height="165" rx="16" fill="#0f1a20" stroke="#2b3a44"/>
+      <rect x="16" y="16" width="228" height="120" rx="10" fill="#16242c"/>
+      <rect x="34" y="36" width="96" height="11" rx="5.5" fill="#2f4650"/>
+      <rect x="34" y="58" width="172" height="10" rx="5" fill="#24363f"/>
+      <rect x="34" y="78" width="136" height="10" rx="5" fill="#24363f"/>
+      <rect x="34" y="102" width="72" height="18" rx="9" fill="#14b8a6" fill-opacity="0.35"/>
+    </g>
+    <rect x="380" y="717" width="320" height="13" rx="6.5" fill="#22323b"/>
+
+    <path d="M540 762 V 872" stroke="#4d6bfe" stroke-opacity="0.8" stroke-width="3" stroke-dasharray="10 9" fill="none"/>
+    <rect x="481" y="801" width="118" height="34" rx="17" fill="#101a22" stroke="#4d6bfe" stroke-opacity="0.55"/>
+    <text x="540" y="823" font-size="15" fill="#a9b8ff">隧道 / frp</text>
+
+    <g transform="translate(435,902)">
+      <rect x="0" y="0" width="210" height="400" rx="30" fill="#0f1a20" stroke="#2b3a44" stroke-width="2"/>
+      <rect x="13" y="15" width="184" height="370" rx="22" fill="#141f27"/>
+      <rect x="79" y="26" width="52" height="8" rx="4" fill="#28353d"/>
+      <rect x="30" y="58" width="80" height="28" rx="14" fill="#ffffff" fill-opacity="0.08"/>
+      <rect x="30" y="102" width="146" height="12" rx="6" fill="#2b3d47"/>
+      <rect x="30" y="124" width="116" height="12" rx="6" fill="#2b3d47"/>
+      <rect x="30" y="154" width="146" height="58" rx="15" fill="#14b8a6" fill-opacity="0.18" stroke="#14b8a6" stroke-opacity="0.35"/>
+      <rect x="46" y="172" width="98" height="10" rx="5" fill="#5eead4" fill-opacity="0.7"/>
+      <rect x="46" y="192" width="64" height="10" rx="5" fill="#5eead4" fill-opacity="0.45"/>
+      <rect x="30" y="232" width="130" height="12" rx="6" fill="#2b3d47"/>
+      <rect x="30" y="254" width="84" height="12" rx="6" fill="#2b3d47"/>
+      <rect x="30" y="318" width="150" height="48" rx="24" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.1"/>
+      <circle cx="172" cy="296" r="30" fill="#0b1015" stroke="#34d399" stroke-opacity="0.75" stroke-width="2.5"/>
+      <text x="172" y="304" font-size="20" font-weight="700" fill="#34d399" font-family="'Segoe UI',sans-serif">42</text>
+    </g>
+    <text x="540" y="1338" font-size="15" fill="#7d8c99">手机 · 局域网 / 外网</text>
+
+    <g transform="translate(0,1382)">
+      <rect x="90" y="0" width="900" height="54" rx="14" fill="#ffffff" fill-opacity="0.045" stroke="#ffffff" stroke-opacity="0.09"/>
+      <circle cx="126" cy="27" r="7" fill="url(#accent)"/>
+      <text x="152" y="34" font-size="19" fill="#c9d4e0" text-anchor="start">局域网扫码即用，反向代理零依赖（Node）</text>
+    </g>
+    <g transform="translate(0,1448)">
+      <rect x="90" y="0" width="900" height="54" rx="14" fill="#ffffff" fill-opacity="0.045" stroke="#ffffff" stroke-opacity="0.09"/>
+      <circle cx="126" cy="27" r="7" fill="url(#accent)"/>
+      <text x="152" y="34" font-size="19" fill="#c9d4e0" text-anchor="start">外观 / 字号 / 语言 按设备隔离，电脑不受影响</text>
+    </g>
+    <g transform="translate(0,1514)">
+      <rect x="90" y="0" width="900" height="54" rx="14" fill="#ffffff" fill-opacity="0.045" stroke="#ffffff" stroke-opacity="0.09"/>
+      <circle cx="126" cy="27" r="7" fill="url(#accent)"/>
+      <text x="152" y="34" font-size="19" fill="#c9d4e0" text-anchor="start">悬浮球显示实时网络延迟，弱网一眼可见</text>
+    </g>
+    <g transform="translate(0,1580)">
+      <rect x="90" y="0" width="900" height="54" rx="14" fill="#ffffff" fill-opacity="0.045" stroke="#ffffff" stroke-opacity="0.09"/>
+      <circle cx="126" cy="27" r="7" fill="url(#accent)"/>
+      <text x="152" y="34" font-size="19" fill="#c9d4e0" text-anchor="start">外网经任意 frp 隧道接入：接口令 + 设备认证</text>
+    </g>
+  </g>
+
+  <g text-anchor="start" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif">
+    <rect x="88" y="1684" width="164" height="164" rx="20" fill="#ffffff"/>
+    <g transform="translate(112,1708) scale(4)">
+      <path d="M0 0h1v1h-1zM1 0h1v1h-1zM2 0h1v1h-1zM3 0h1v1h-1zM4 0h1v1h-1zM5 0h1v1h-1zM6 0h1v1h-1zM9 0h1v1h-1zM10 0h1v1h-1zM11 0h1v1h-1zM13 0h1v1h-1zM14 0h1v1h-1zM15 0h1v1h-1zM18 0h1v1h-1zM19 0h1v1h-1zM22 0h1v1h-1zM23 0h1v1h-1zM24 0h1v1h-1zM25 0h1v1h-1zM26 0h1v1h-1zM27 0h1v1h-1zM28 0h1v1h-1zM0 1h1v1h-1zM6 1h1v1h-1zM10 1h1v1h-1zM13 1h1v1h-1zM14 1h1v1h-1zM15 1h1v1h-1zM17 1h1v1h-1zM18 1h1v1h-1zM22 1h1v1h-1zM28 1h1v1h-1zM0 2h1v1h-1zM2 2h1v1h-1zM3 2h1v1h-1zM4 2h1v1h-1zM6 2h1v1h-1zM10 2h1v1h-1zM11 2h1v1h-1zM12 2h1v1h-1zM14 2h1v1h-1zM17 2h1v1h-1zM20 2h1v1h-1zM22 2h1v1h-1zM24 2h1v1h-1zM25 2h1v1h-1zM26 2h1v1h-1zM28 2h1v1h-1zM0 3h1v1h-1zM2 3h1v1h-1zM3 3h1v1h-1zM4 3h1v1h-1zM6 3h1v1h-1zM9 3h1v1h-1zM11 3h1v1h-1zM12 3h1v1h-1zM14 3h1v1h-1zM17 3h1v1h-1zM18 3h1v1h-1zM19 3h1v1h-1zM20 3h1v1h-1zM22 3h1v1h-1zM24 3h1v1h-1zM25 3h1v1h-1zM26 3h1v1h-1zM28 3h1v1h-1zM0 4h1v1h-1zM2 4h1v1h-1zM3 4h1v1h-1zM4 4h1v1h-1zM6 4h1v1h-1zM9 4h1v1h-1zM11 4h1v1h-1zM12 4h1v1h-1zM13 4h1v1h-1zM14 4h1v1h-1zM15 4h1v1h-1zM16 4h1v1h-1zM18 4h1v1h-1zM22 4h1v1h-1zM24 4h1v1h-1zM25 4h1v1h-1zM26 4h1v1h-1zM28 4h1v1h-1zM0 5h1v1h-1zM6 5h1v1h-1zM8 5h1v1h-1zM14 5h1v1h-1zM15 5h1v1h-1zM16 5h1v1h-1zM17 5h1v1h-1zM18 5h1v1h-1zM19 5h1v1h-1zM22 5h1v1h-1zM28 5h1v1h-1zM0 6h1v1h-1zM1 6h1v1h-1zM2 6h1v1h-1zM3 6h1v1h-1zM4 6h1v1h-1zM5 6h1v1h-1zM6 6h1v1h-1zM8 6h1v1h-1zM10 6h1v1h-1zM12 6h1v1h-1zM14 6h1v1h-1zM16 6h1v1h-1zM18 6h1v1h-1zM20 6h1v1h-1zM22 6h1v1h-1zM23 6h1v1h-1zM24 6h1v1h-1zM25 6h1v1h-1zM26 6h1v1h-1zM27 6h1v1h-1zM28 6h1v1h-1zM12 7h1v1h-1zM15 7h1v1h-1zM17 7h1v1h-1zM18 7h1v1h-1zM20 7h1v1h-1zM0 8h1v1h-1zM3 8h1v1h-1zM5 8h1v1h-1zM6 8h1v1h-1zM8 8h1v1h-1zM10 8h1v1h-1zM13 8h1v1h-1zM14 8h1v1h-1zM15 8h1v1h-1zM16 8h1v1h-1zM18 8h1v1h-1zM20 8h1v1h-1zM21 8h1v1h-1zM23 8h1v1h-1zM0 9h1v1h-1zM3 9h1v1h-1zM5 9h1v1h-1zM9 9h1v1h-1zM11 9h1v1h-1zM12 9h1v1h-1zM17 9h1v1h-1zM18 9h1v1h-1zM20 9h1v1h-1zM22 9h1v1h-1zM25 9h1v1h-1zM28 9h1v1h-1zM1 10h1v1h-1zM3 10h1v1h-1zM4 10h1v1h-1zM6 10h1v1h-1zM11 10h1v1h-1zM13 10h1v1h-1zM14 10h1v1h-1zM19 10h1v1h-1zM21 10h1v1h-1zM24 10h1v1h-1zM25 10h1v1h-1zM26 10h1v1h-1zM27 10h1v1h-1zM0 11h1v1h-1zM1 11h1v1h-1zM2 11h1v1h-1zM4 11h1v1h-1zM8 11h1v1h-1zM11 11h1v1h-1zM12 11h1v1h-1zM13 11h1v1h-1zM15 11h1v1h-1zM20 11h1v1h-1zM24 11h1v1h-1zM26 11h1v1h-1zM27 11h1v1h-1zM2 12h1v1h-1zM3 12h1v1h-1zM6 12h1v1h-1zM13 12h1v1h-1zM15 12h1v1h-1zM16 12h1v1h-1zM17 12h1v1h-1zM18 12h1v1h-1zM20 12h1v1h-1zM21 12h1v1h-1zM22 12h1v1h-1zM25 12h1v1h-1zM27 12h1v1h-1zM28 12h1v1h-1zM0 13h1v1h-1zM1 13h1v1h-1zM2 13h1v1h-1zM3 13h1v1h-1zM4 13h1v1h-1zM8 13h1v1h-1zM9 13h1v1h-1zM12 13h1v1h-1zM13 13h1v1h-1zM17 13h1v1h-1zM18 13h1v1h-1zM19 13h1v1h-1zM20 13h1v1h-1zM21 13h1v1h-1zM0 14h1v1h-1zM1 14h1v1h-1zM4 14h1v1h-1zM6 14h1v1h-1zM8 14h1v1h-1zM11 14h1v1h-1zM14 14h1v1h-1zM17 14h1v1h-1zM18 14h1v1h-1zM20 14h1v1h-1zM22 14h1v1h-1zM23 14h1v1h-1zM24 14h1v1h-1zM25 14h1v1h-1zM26 14h1v1h-1zM27 14h1v1h-1zM28 14h1v1h-1zM1 15h1v1h-1zM4 15h1v1h-1zM5 15h1v1h-1zM8 15h1v1h-1zM9 15h1v1h-1zM12 15h1v1h-1zM13 15h1v1h-1zM17 15h1v1h-1zM18 15h1v1h-1zM20 15h1v1h-1zM21 15h1v1h-1zM22 15h1v1h-1zM25 15h1v1h-1zM27 15h1v1h-1zM0 16h1v1h-1zM6 16h1v1h-1zM7 16h1v1h-1zM9 16h1v1h-1zM10 16h1v1h-1zM12 16h1v1h-1zM16 16h1v1h-1zM17 16h1v1h-1zM20 16h1v1h-1zM23 16h1v1h-1zM27 16h1v1h-1zM1 17h1v1h-1zM2 17h1v1h-1zM3 17h1v1h-1zM10 17h1v1h-1zM13 17h1v1h-1zM14 17h1v1h-1zM16 17h1v1h-1zM20 17h1v1h-1zM21 17h1v1h-1zM22 17h1v1h-1zM23 17h1v1h-1zM25 17h1v1h-1zM28 17h1v1h-1zM0 18h1v1h-1zM4 18h1v1h-1zM5 18h1v1h-1zM6 18h1v1h-1zM7 18h1v1h-1zM8 18h1v1h-1zM9 18h1v1h-1zM10 18h1v1h-1zM16 18h1v1h-1zM17 18h1v1h-1zM18 18h1v1h-1zM21 18h1v1h-1zM23 18h1v1h-1zM24 18h1v1h-1zM27 18h1v1h-1zM28 18h1v1h-1zM2 19h1v1h-1zM3 19h1v1h-1zM4 19h1v1h-1zM5 19h1v1h-1zM7 19h1v1h-1zM11 19h1v1h-1zM12 19h1v1h-1zM14 19h1v1h-1zM15 19h1v1h-1zM17 19h1v1h-1zM18 19h1v1h-1zM20 19h1v1h-1zM21 19h1v1h-1zM23 19h1v1h-1zM24 19h1v1h-1zM27 19h1v1h-1zM28 19h1v1h-1zM0 20h1v1h-1zM2 20h1v1h-1zM3 20h1v1h-1zM6 20h1v1h-1zM7 20h1v1h-1zM8 20h1v1h-1zM9 20h1v1h-1zM10 20h1v1h-1zM11 20h1v1h-1zM16 20h1v1h-1zM19 20h1v1h-1zM20 20h1v1h-1zM21 20h1v1h-1zM22 20h1v1h-1zM23 20h1v1h-1zM24 20h1v1h-1zM26 20h1v1h-1zM8 21h1v1h-1zM9 21h1v1h-1zM10 21h1v1h-1zM11 21h1v1h-1zM16 21h1v1h-1zM17 21h1v1h-1zM18 21h1v1h-1zM19 21h1v1h-1zM20 21h1v1h-1zM24 21h1v1h-1zM26 21h1v1h-1zM27 21h1v1h-1zM28 21h1v1h-1zM0 22h1v1h-1zM1 22h1v1h-1zM2 22h1v1h-1zM3 22h1v1h-1zM4 22h1v1h-1zM5 22h1v1h-1zM6 22h1v1h-1zM10 22h1v1h-1zM12 22h1v1h-1zM16 22h1v1h-1zM20 22h1v1h-1zM22 22h1v1h-1zM24 22h1v1h-1zM27 22h1v1h-1zM0 23h1v1h-1zM6 23h1v1h-1zM8 23h1v1h-1zM9 23h1v1h-1zM10 23h1v1h-1zM14 23h1v1h-1zM16 23h1v1h-1zM18 23h1v1h-1zM20 23h1v1h-1zM24 23h1v1h-1zM25 23h1v1h-1zM26 23h1v1h-1zM0 24h1v1h-1zM2 24h1v1h-1zM3 24h1v1h-1zM4 24h1v1h-1zM6 24h1v1h-1zM15 24h1v1h-1zM16 24h1v1h-1zM17 24h1v1h-1zM20 24h1v1h-1zM21 24h1v1h-1zM22 24h1v1h-1zM23 24h1v1h-1zM24 24h1v1h-1zM0 25h1v1h-1zM2 25h1v1h-1zM3 25h1v1h-1zM4 25h1v1h-1zM6 25h1v1h-1zM8 25h1v1h-1zM10 25h1v1h-1zM11 25h1v1h-1zM12 25h1v1h-1zM16 25h1v1h-1zM17 25h1v1h-1zM18 25h1v1h-1zM19 25h1v1h-1zM20 25h1v1h-1zM22 25h1v1h-1zM23 25h1v1h-1zM24 25h1v1h-1zM25 25h1v1h-1zM26 25h1v1h-1zM27 25h1v1h-1zM0 26h1v1h-1zM2 26h1v1h-1zM3 26h1v1h-1zM4 26h1v1h-1zM6 26h1v1h-1zM9 26h1v1h-1zM12 26h1v1h-1zM14 26h1v1h-1zM17 26h1v1h-1zM19 26h1v1h-1zM20 26h1v1h-1zM24 26h1v1h-1zM25 26h1v1h-1zM26 26h1v1h-1zM28 26h1v1h-1zM0 27h1v1h-1zM6 27h1v1h-1zM10 27h1v1h-1zM15 27h1v1h-1zM16 27h1v1h-1zM17 27h1v1h-1zM19 27h1v1h-1zM20 27h1v1h-1zM21 27h1v1h-1zM24 27h1v1h-1zM27 27h1v1h-1zM0 28h1v1h-1zM1 28h1v1h-1zM2 28h1v1h-1zM3 28h1v1h-1zM4 28h1v1h-1zM5 28h1v1h-1zM6 28h1v1h-1zM8 28h1v1h-1zM9 28h1v1h-1zM10 28h1v1h-1zM11 28h1v1h-1zM12 28h1v1h-1zM17 28h1v1h-1zM20 28h1v1h-1zM21 28h1v1h-1zM22 28h1v1h-1zM23 28h1v1h-1zM24 28h1v1h-1zM25 28h1v1h-1zM27 28h1v1h-1z" fill="#0b1015"/>
+    </g>
+    <text x="292" y="1732" font-size="19" font-family="'Cascadia Mono','Consolas',monospace" fill="#cfe6e0">github.com/cuteG41cute/dsh-mobile</text>
+    <text x="292" y="1768" font-size="16" fill="#8b98a5">扫码打开仓库</text>
+    <rect x="292" y="1786" width="132" height="34" rx="17" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.12"/>
+    <text x="312" y="1809" font-size="15" fill="#9fb0c0">MIT License</text>
+    <rect x="438" y="1786" width="202" height="34" rx="17" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.12"/>
+    <text x="458" y="1809" font-size="15" fill="#9fb0c0">零 npm 依赖 · Node ≥ 18</text>
+  </g>
+
+  <rect x="0" y="1908" width="1080" height="12" fill="url(#accent)"/>
+</svg>
