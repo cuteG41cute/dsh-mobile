@@ -570,8 +570,20 @@
   document.addEventListener("contextmenu", function (event) { if (inPreview(event.target)) event.preventDefault(); }, true);
 
   /* ---------- 循环：只做幂等写入，绝不用 MutationObserver 驱动（会自激死循环） ---------- */
+  /* 预览这一摊只对「手机/平板/窄窗口」生效：宽屏 PC 上保持产品原样（原始尺寸 + 滚动）。
+     触屏优先判断——手机横屏也可能超过 720px，而 PC 基本没有触摸点。
+     ⤓ 下载按钮不设门控：PC 上同样有用，也不改变产品的任何行为。 */
+  function mobileish() {
+    try { if (navigator.maxTouchPoints > 0) return true; } catch (error) { /* 老内核没有这个属性 */ }
+    return window.innerWidth <= 720;
+  }
   function tick() {
     markRows();
+    if (!mobileish()) {
+      if (document.body.className.indexOf("dshm-pv-fit") >= 0) document.body.classList.remove("dshm-pv-fit");
+      if (menuEl) hideMenu();
+      return;
+    }
     var has = !!previewRoot() && mediaVisible();
     if (has && scale === null && document.body.className.indexOf("dshm-pv-fit") < 0) setFit();
     if (!has && menuEl) hideMenu();
