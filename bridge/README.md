@@ -224,6 +224,7 @@ WebSocket connection to 'ws://192.168.1.10:8099/api/remote.mux' failed: 404
 
 - **不要用 `display:none` 隐藏 `_sidebarCol`**：三栏是产品用内联 `style` 设的 CSS Grid（`grid-template-columns: 56px minmax(0,1fr) 0px`）。把第一个子元素移出网格，后面两列会整体前移——中间栏被塞进 56px 轨道（实测 412px 屏上中心列只剩 56px）。正确做法：**改轨道为 0** + 给三列**显式 `grid-column`**；抽屉再 `position:fixed` 浮起来，这样抽屉开关都不影响内容宽度。
 - 抽屉的开合判据**不能用侧栏实测宽度**（收起态宽度为 0，会死锁）：用产品自己的折叠按钮 `aria-label`（「收起侧边栏」= 展开中）。
+- **「点会话才收抽屉」不能靠 `[role="treeitem"]` 一刀切**：产品侧栏里**项目/分组行也是 `role="treeitem"`**（带 `aria-expanded`，点它是展开/收起），只有**会话行**（`_sessionRow`，带 `aria-selected`）和**搜索结果行**（`_searchResultRow`）点击才打开会话。所以判据必须是「命中会话类行 **且** 该行没有 `aria-expanded`」，否则点一下文件夹就会把抽屉收走（2026-10-07 修）。
 
 - 关掉：启动桥时设 `DSH_BRIDGE_NO_TWEAKS=1`；
 - 注入片段带 `id="dshm-css"` / `id="dshm-js"`，页面里搜这两个标记即可确认是否生效；

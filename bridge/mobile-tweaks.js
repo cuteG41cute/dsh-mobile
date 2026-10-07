@@ -188,7 +188,10 @@
   document.addEventListener("click", function (event) {
     var t = event.target;
     if (!t || !t.closest) return;
-    if (t.closest('[class*="_sessionRow"], [role="treeitem"], [data-session-id]')) {
+    /* 打开会话（会话行 / 搜索结果行）才收起抽屉；
+       项目、分组这类「展开/收起」行带 aria-expanded，点它们只切换展开状态，抽屉保持打开 */
+    var hit = t.closest('[class*="_sessionRow"], [class*="_searchResultRow"], [data-session-id], [role="treeitem"]');
+    if (hit && !hit.hasAttribute("aria-expanded")) {
       window.setTimeout(closeDrawer, 220);
       suppressComposerFocus(1200);
       return;
