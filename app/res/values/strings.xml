@@ -10,6 +10,10 @@
     <string name="settings_server">服务器地址</string>
     <string name="settings_server_hint">例如 http://192.168.1.23:8099</string>
     <string name="settings_server_help">电脑上 dsh-mobile-bridge 的地址；改完点「保存」（返回后自动重新连接）</string>
+    <string name="settings_server_alt">备用地址（可选）</string>
+    <string name="settings_server_alt_hint">例如 https://dsh.example.com</string>
+    <string name="settings_server_alt_help">家里 / 外网两条路各填一个：打开时先试主用地址，4.5 秒不通就自动切备用，不用手动改。只填一个也能正常用。</string>
+    <string name="settings_diag">连接诊断（DNS / 端口 / 证书 / HTTP）</string>
     <string name="settings_keep_on">保持屏幕常亮</string>
     <string name="settings_keep_on_help">聊天时不让手机自动息屏</string>
     <string name="settings_actions">快捷操作</string>

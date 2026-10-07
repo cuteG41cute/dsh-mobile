@@ -10,6 +10,7 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
+import android.net.http.SslError;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -22,6 +23,7 @@ import android.webkit.ConsoleMessage;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
 import android.webkit.PermissionRequest;
+import android.webkit.SslErrorHandler;
 import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -36,6 +38,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.cert.X509Certificate;
+
+import javax.net.ssl.HttpsURLConnection;
 
 /**
  * DeepSeek Harness（dsh-mobile-app）—— 把本机 DeepSeek Harness WebUI（经 dsh-mobile-bridge）包成一个安卓应用。
@@ -50,6 +55,9 @@ public class MainActivity extends Activity {
     private static final String TAG = "DSHMobile";
     static final String PREFS = "dsh_mobile";
     static final String KEY_URL = "server_url";
+    static final String KEY_URL_ALT = "server_url_alt";
+    /* TOFU：自签证书的指纹，按 "ssl_pin_<host:port>" 存；只认记住的那一张 */
+    static final String KEY_PIN_PREFIX = "ssl_pin_";
     static final String KEY_KEEP_ON = "keep_screen_on";
     static final String KEY_PENDING = "pending_action";
     static final String KEY_BALL_X = "ball_x";
@@ -77,6 +85,13 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> pendingFileCallback;
     private long lastBackPressedAt = 0L;
     private String serverUrl = DEFAULT_URL;
+    /* 备用地址：只在「主用地址预检不通」时启用，平时完全不参与，主路径行为不变 */
+    private String serverAlt = "";
+    /* 上一次生效的备用地址，用来判断设置里改过没有 */
+    private String lastAlt = "";
+    /* 上一次「配置里的主地址」。注意不能用 serverUrl 比：回退到备用后 serverUrl 会变，
+       拿它比会导致每次回到前台都重载页面。 */
+    private String lastPrimary = "";
 
     private float ballDownRawX, ballDownRawY;
     private float ballStartX, ballStartY;
@@ -128,6 +143,7 @@ public class MainActivity extends Activity {
         setupBall();
 
         serverUrl = normalizeUrl(prefs.getString(KEY_URL, DEFAULT_URL));
+        serverAlt = normalizeUrl(prefs.getString(KEY_URL_ALT, ""));
         applyKeepScreenOn(prefs.getBoolean(KEY_KEEP_ON, false));
 
         if (!prefs.contains(KEY_URL)) {
@@ -216,7 +232,89 @@ public class MainActivity extends Activity {
         }
         errorPanel.setVisibility(View.GONE);
         progressBar.setVisibility(View.VISIBLE);
-        webView.loadUrl(serverUrl);
+        lastPrimary = serverUrl;
+        lastAlt = serverAlt;
+        /* 没有备用地址：完全按老路径走，零风险（不预检、不等待、不改变任何时序）。
+           有备用地址：后台预检主用地址，不通就直接切备用，省掉用户手动改地址。 */
+        if (serverAlt.isEmpty() || serverAlt.equals(serverUrl)) {
+            webView.loadUrl(serverUrl);
+            return;
+        }
+        final String primary = serverUrl;
+        final String fallback = serverAlt;
+        new Thread(new Runnable() {
+            @Override public void run() {
+                final boolean primaryOk = preflight(primary);
+                final String picked = primaryOk ? primary : fallback;
+                runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        if (!primaryOk) {
+                            Toast.makeText(MainActivity.this,
+                                    "主用地址连不上，已切到备用地址", Toast.LENGTH_LONG).show();
+                        }
+                        serverUrl = picked;
+                        webView.loadUrl(picked);
+                    }
+                });
+            }
+        }).start();
+    }
+
+    /* --------------------------- ① 自签证书信任 ---------------------------
+     * 铁律：不做「信任所有证书」。首次连上把指纹摊给用户看（TOFU），确认后只认这一张；
+     * 之后只有指纹对得上的证书才放行，中间人换一张立刻被拒。
+     * -------------------------------------------------------------------- */
+
+    /** 该主机已记住的证书指纹（0 或 1 个）。 */
+    private String[] trustedPins(String host) {
+        if (host == null || host.isEmpty()) return new String[0];
+        String pin = prefs.getString(KEY_PIN_PREFIX + host.toLowerCase(), "");
+        if (pin == null || pin.isEmpty()) return new String[0];
+        return new String[]{ pin };
+    }
+
+    private boolean isTrusted(String host, X509Certificate cert) {
+        return NetTools.trusted(NetTools.fingerprint(cert), trustedPins(host));
+    }
+
+    /** 让用户在「指纹」面前做决定。同意 → 记住 + 重新加载。 */
+    private void askTrustCert(final String url, final String host, final String fingerprint) {
+        String shown = fingerprint.isEmpty() ? "（取不到指纹）" : fingerprint.replaceAll("(.{4})(?=.)", "$1 ");
+        new AlertDialog.Builder(this)
+                .setTitle("这是自签证书")
+                .setMessage("服务器：" + host + "\n\n"
+                        + "证书指纹（SHA-256）：\n" + shown + "\n\n"
+                        + "自签证书 = 这台服务器自己给自己签发的，系统证书链认不出它。如果这台服务器"
+                        + "是你自己的（比如家里的电脑 + 隧道），指纹对得上就可以信任。\n\n"
+                        + "只有确认过这个指纹的人才能继续——所以请对着服务器上同样显示的一串核对一下。")
+                .setPositiveButton("信任并记住", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int w) {
+                        prefs.edit().putString(KEY_PIN_PREFIX + (host == null ? "" : host.toLowerCase()),
+                                fingerprint).apply();
+                        Toast.makeText(MainActivity.this, "已记住，下次不再询问", Toast.LENGTH_SHORT).show();
+                        webView.loadUrl(url);
+                    }
+                })
+                .setNegativeButton("先不连", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int w) {
+                        progressBar.setVisibility(View.GONE);
+                        errorText.setText("已拒绝自签证书\n\n服务器：" + host
+                                + "\n\n如果这是你自己的服务器，请重新加载页面，在弹窗里核对指纹后点「信任并记住」。\n\n"
+                                + getString(R.string.error_hint));
+                        errorPanel.setVisibility(View.VISIBLE);
+                    }
+                })
+                .show();
+    }
+
+    /** 预检：4.5 秒内能不能拿到响应（任何状态码都算通）。有 pin 的自签站也算通。 */
+    private boolean preflight(String url) {
+        try {
+            return NetTools.reachable(url, trustedPins(Uri.parse(url).getHost()), 4500);
+        } catch (Exception e) {
+            Log.w(TAG, "preflight failed: " + e);
+            return false;
+        }
     }
 
     /* ------------------------------- 悬浮球 ------------------------------- */
@@ -306,6 +404,14 @@ public class MainActivity extends Activity {
             conn.setReadTimeout(4000);
             conn.setRequestMethod("GET");
             conn.setUseCaches(false);
+            /* 自签证书的站：原生请求默认走系统信任链，会直接被拒 → 球一直显示 --。
+               这里用已记住的指纹建一个只认它的 SSLContext，跟 WebView 侧的信任保持一致。 */
+            if (conn instanceof HttpsURLConnection) {
+                String[] pins = trustedPins(Uri.parse(target).getHost());
+                if (pins.length > 0) {
+                    ((HttpsURLConnection) conn).setSSLSocketFactory(NetTools.pinnedContext(pins).getSocketFactory());
+                }
+            }
             /* 这是原生请求，不共享 WebView 的 cookie jar：不带上就会在走隧道时
                过不了桥的接入口令闸门（每 5 秒被拦一次、日志刷屏），带上就跟页面同等待遇。
                与下载（startDownload）用的是同一招，那条路已在真机上验证过。 */
@@ -391,7 +497,9 @@ public class MainActivity extends Activity {
             }
         }
         String saved = normalizeUrl(prefs.getString(KEY_URL, DEFAULT_URL));
-        if (!saved.equals(serverUrl)) {
+        String savedAlt = normalizeUrl(prefs.getString(KEY_URL_ALT, ""));
+        serverAlt = savedAlt;
+        if (!saved.equals(lastPrimary) || !savedAlt.equals(lastAlt)) {
             serverUrl = saved;
             loadServer();
         }
@@ -442,6 +550,13 @@ public class MainActivity extends Activity {
     private void startDownload(String url, String contentDisposition, String mimeType) {
         try {
             String fileName = URLUtil.guessFileName(url, contentDisposition, mimeType);
+            /* 自签证书的站：系统下载器不认我们的 pin，会直接失败 → 换成应用自己下（只认记住的指纹）。
+               普通站点（含公网证书的隧道）依旧走系统下载器，这条分支根本不进。 */
+            String[] pins = trustedPins(Uri.parse(url).getHost());
+            if (url.startsWith("https://") && pins.length > 0) {
+                downloadWithPin(url, fileName, mimeType, pins);
+                return;
+            }
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
             String cookie = CookieManager.getInstance().getCookie(url);
             if (cookie != null) request.addRequestHeader("Cookie", cookie);
@@ -458,6 +573,32 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             Toast.makeText(this, "下载失败：" + e.getMessage(), Toast.LENGTH_LONG).show();
         }
+    }
+
+    /** 自签证书下的下载：走应用自己的线程 + pin，进度直接画到浮球外圈。 */
+    private void downloadWithPin(String url, String fileName, String mimeType, String[] pins) {
+        activeDownloadId = -1L;      /* 停掉系统下载器那套轮询，环交给这条下载 */
+        Toast.makeText(this, "开始下载：" + fileName, Toast.LENGTH_SHORT).show();
+        PinnedDownload.start(url, CookieManager.getInstance().getCookie(url), fileName, mimeType,
+                pins, this, new PinnedDownload.Progress() {
+            @Override public void onProgress(final int percent) {
+                ballHandler.post(new Runnable() { @Override public void run() {
+                    if (ball != null) ball.setRing(percent / 100f);
+                } });
+            }
+            @Override public void onDone(final String where) {
+                ballHandler.post(new Runnable() { @Override public void run() {
+                    if (ball != null) ball.setRing(-1f);
+                    Toast.makeText(MainActivity.this, "已下载：" + where, Toast.LENGTH_LONG).show();
+                } });
+            }
+            @Override public void onError(final String message) {
+                ballHandler.post(new Runnable() { @Override public void run() {
+                    if (ball != null) ball.setRing(-1f);
+                    Toast.makeText(MainActivity.this, "下载失败：" + message, Toast.LENGTH_LONG).show();
+                } });
+            }
+        });
     }
 
     /* ---------------------- 浮球上的下载进度环 ----------------------
@@ -601,6 +742,36 @@ public class MainActivity extends Activity {
                     }
                 }, 700);
             }
+        }
+
+        @Override
+        public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+            /* 默认行为 = 一律拒绝（最安全）。只在「指纹正好等于用户记住的那张」时放行；
+               否则弹窗让用户核对指纹 —— 既不静默拒绝到用户一头雾水，也不静默信任。 */
+            X509Certificate cert = null;
+            try {
+                if (error.getCertificate() != null) cert = error.getCertificate().getX509Certificate();
+            } catch (Exception e) {
+                Log.w(TAG, "cannot read cert: " + e);
+            }
+            String host = null;
+            String url = error.getUrl() == null ? serverUrl : error.getUrl();
+            try {
+                host = Uri.parse(url).getHost();
+            } catch (Exception e) {
+                Log.w(TAG, "cannot parse url: " + url);
+            }
+            if (cert != null && isTrusted(host, cert)) {
+                Log.i(TAG, "ssl: fingerprint matches the remembered one, proceed");
+                handler.proceed();
+                return;
+            }
+            handler.cancel();
+            progressBar.setVisibility(View.GONE);
+            String primary = error.getPrimaryError() == SslError.SSL_EXPIRED ? "证书已过期"
+                    : (error.getPrimaryError() == SslError.SSL_IDMISMATCH ? "证书与域名不匹配" : "证书不被信任");
+            askTrustCert(url, host, NetTools.fingerprint(cert));
+            Log.w(TAG, "ssl error (" + primary + ") host=" + host);
         }
 
         @Override

@@ -73,7 +73,7 @@ powershell -ExecutionPolicy Bypass -File bridge/allow-firewall.ps1
 
 ## 安卓 App
 
-`app/dist/dsh-mobile-1.3.6.apk` 是可直接安装的构建产物（自签名，仅供自用）；也可以从 [Releases](https://github.com/cuteG41cute/dsh-mobile/releases/latest) 直接下载。装好后应用叫 **DeepSeek Harness**（桌面图标是一只虎鲸，左右各留约 8% 空白）。自己改代码后重新构建：
+`app/dist/dsh-mobile-1.3.7.apk` 是可直接安装的构建产物（自签名，仅供自用）；也可以从 [Releases](https://github.com/cuteG41cute/dsh-mobile/releases/latest) 直接下载。装好后应用叫 **DeepSeek Harness**（桌面图标是一只虎鲸，左右各留约 8% 空白）。自己改代码后重新构建：
 
 ```powershell
 cd app
@@ -88,6 +88,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1 -VersionCode 10 -VersionName 
 
 - 桥端口**等价于本机 shell 权限**：能打开它的人即可读写文件、执行命令。**只暴露桥端口，绝不要暴露 3080**；
 - 三道闸门：接入口令（外网必须带）+ 设备认证（本机点 ✓）+ 可选「完全信任」（免口令，可随时撤销）；
+- 自签证书（App v1.3.7 起）：连到证书不被系统信任的服务器时，App 把 **SHA-256 指纹**摊给你核对，确认后只认这一张（TOFU）。**没有「信任所有证书」这个开关**——中间人换一张证书会立刻被拒；
 - 桥不给页面注入任何远程代码：面板/适配脚本都是本地文件；
 - 建议：只用在家用网络 + 自己的隧道；不要把端口映射到公网裸奔。
 
