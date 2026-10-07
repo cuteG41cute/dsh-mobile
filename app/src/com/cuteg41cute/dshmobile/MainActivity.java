@@ -306,6 +306,11 @@ public class MainActivity extends Activity {
             conn.setReadTimeout(4000);
             conn.setRequestMethod("GET");
             conn.setUseCaches(false);
+            /* 这是原生请求，不共享 WebView 的 cookie jar：不带上就会在走隧道时
+               过不了桥的接入口令闸门（每 5 秒被拦一次、日志刷屏），带上就跟页面同等待遇。
+               与下载（startDownload）用的是同一招，那条路已在真机上验证过。 */
+            String cookie = CookieManager.getInstance().getCookie(target);
+            if (cookie != null && !cookie.isEmpty()) conn.setRequestProperty("Cookie", cookie);
             conn.getResponseCode();
             return (int) Math.max(1L, System.currentTimeMillis() - t0);
         } catch (Exception e) {
