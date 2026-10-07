@@ -71,7 +71,7 @@ powershell -ExecutionPolicy Bypass -File bridge/allow-firewall.ps1
 
 ## 安卓 App
 
-`app/dist/dsh-mobile-1.3.5.apk` 是可直接安装的构建产物（自签名，仅供自用）。自己改代码后重新构建：
+`app/dist/dsh-mobile-1.3.5.apk` 是可直接安装的构建产物（自签名，仅供自用）；也可以从 [Releases](https://github.com/cuteG41cute/dsh-mobile/releases/latest) 直接下载。自己改代码后重新构建：
 
 ```powershell
 cd app
