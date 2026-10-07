@@ -216,6 +216,47 @@
     if (isPanelOpen()) layoutPanel();
   }
 
+  /* ---------- 一次只开一个插件面板 ----------
+   * 芯片的点击是「开关式」：再点一下就会收起它自己的面板。所以想关掉上一个，
+   * 只要在**它确实开着面板**时再点它一下 —— 完全不碰插件内部状态，任何插件都通用。
+   * 两个要点：
+   *   ① 只有「当前确实有浮层面板」的芯片才去点它，否则会把「时间戳」这种
+   *      点一下就切开关的芯片误触（一点就把它关掉了）；
+   *   ② 合成的那次点击会再次进本监听器，此时 target 就是 lastChip，直接放行即可，不会递归。
+   * ------------------------------------------------------------------ */
+  var lastChip = null;
+  function chipScope(chip, util) {
+    var item = chip;
+    while (item && item.parentElement && item.parentElement !== util) item = item.parentElement;
+    return item && item.parentElement === util ? item : chip.parentElement;
+  }
+  function ownsPanel(chip, util) {
+    var scope = chipScope(chip, util);
+    if (!scope) return false;
+    var nodes = scope.querySelectorAll("div, section, aside, form");
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (el === chip || el.contains(chip)) continue;          /* 芯片自己不算 */
+      var cs = window.getComputedStyle(el);
+      if (cs.display === "none" || cs.visibility === "hidden") continue;
+      if (cs.position !== "fixed" && cs.position !== "absolute") continue;
+      var r = el.getBoundingClientRect();
+      if (r.width >= 120 && r.height >= 60) return true;       /* 像块面板 */
+    }
+    return false;
+  }
+  document.addEventListener("click", function (event) {
+    var target = event.target;
+    var chip = target && target.closest ? target.closest("[data-dshm-chip]") : null;
+    if (!chip) return;
+    if (chip === lastChip) return;                             /* 合成点击 / 重复点击 */
+    var util = utilities();
+    if (lastChip && util && lastChip.isConnected && ownsPanel(lastChip, util)) {
+      try { lastChip.click(); } catch (e) { /* 插件没实现开关就让用户自己关 */ }
+    }
+    lastChip = chip;
+  }, true);
+
   /* ---------- 点会话 / 点别处 ---------- */
   function suppressComposerFocus(ms) {
     var until = Date.now() + ms;

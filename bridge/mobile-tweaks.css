@@ -173,7 +173,7 @@
   /* 6) 「插件」药丸 + 悬浮面板 */
   #dshm-plugin-toggle {
     position: fixed;
-    z-index: 61;
+    z-index: 71;
     font: inherit;
     font-size: 12px;
     line-height: 18px;
@@ -210,7 +210,10 @@
     position: fixed !important;
     right: 8px !important;
     left: auto !important;
-    z-index: 60 !important;
+    /* 70 > 插件面板的 60：列表面板是用户刚点开的临时层，必须永远点得到。
+       （插件面板与芯片都在同一个工具区里，谁在 DOM 后面谁压上面——不能靠顺序赌。）
+       列表点中芯片/点别处就收起，所以这个层级只存在一瞬，不会长期压住插件面板的按钮。 */
+    z-index: 70 !important;
     width: 168px !important;
     justify-content: flex-start !important;
     background: var(--dsw-specific-sidebar-fill, rgba(18, 18, 18, .92)) !important;
