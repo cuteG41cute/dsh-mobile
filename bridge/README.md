@@ -228,7 +228,17 @@ WebSocket connection to 'ws://192.168.1.10:8099/api/remote.mux' failed: 404
 
 - 关掉：启动桥时设 `DSH_BRIDGE_NO_TWEAKS=1`；
 - 注入片段带 `id="dshm-css"` / `id="dshm-js"`，页面里搜这两个标记即可确认是否生效；
-- 这些是**纯样式覆盖**：不改产品状态、不发请求，DSH 升级后即使 class 哈希变了也只会退回原样。
+- 这些是**纯样式覆盖**：不改产品状态、不发请求，DSH 升级后即使 class 哈希变了也只会退回原样（下载按钮与缩放控制条同样只依赖 `data-files-entry` / `data-files-path` / `data-image-preview` / `data-pdf-preview` 这几个**稳定 data 属性**，不吃 class 哈希）。
+
+#### 手机端下载（/__file）与预览缩放
+
+DSH 的「文件」面板没有下载入口（点开只走应用内预览，而且预览是 RPC 取 base64 → blob，WebView 的下载器拿不到），图片/PDF 又按**原始尺寸**渲染，小屏上只能看到一角。两件事都在桥 + 注入层解决：
+
+- **下载**：注入脚本给每个 `li[data-files-entry="file"]` 补一个 `⤓`（预览控制条上也有一个），指向 `GET /__file?path=<绝对路径>`；桥以 `Content-Disposition: attachment` 回文件，Android WebView 的 `DownloadListener` 转交系统下载器（`CookieManager.getCookie` 已把 WebView 的 cookie 带上，所以外网经隧道也过得了口令闸门），落到手机「下载」目录。
+  - 文件名同时给 ASCII 兜底和 RFC 5987 的 UTF-8 名（`filename*=UTF-8''…`），中文名不会乱码或被截断；
+  - **安全边界**：`/__file` 能读走本机任意可读文件——它和桥的其它接口一样在**设备认证 + 接入口令**之后，而桥口本身已经等价于本机 shell 权限（见「安全模型」），所以不额外扩大攻击面；但仍不要把这个端口暴露到公网。
+- **缩放**：控制条切 `body` 上的 `dshm-pv-fit` / `dshm-pv-z{50…300}`，CSS 夹住产品的 `width:max-content` frame（只压 img 的 `max-width` 等于没压），默认「适宽」一屏看全，1:1 与百分比档按原图尺寸缩放、由滚动容器平移。
+- **一句教训**：注入脚本里**不要用 MutationObserver 驱动会写 DOM 的 tick**——自己写、自己触发，实测直接把页面卡死（打开图片预览即复现）。改成定时器 + 「值没变就不写」幂等写入后正常。
 
 ### 9.3 APK 分发
 

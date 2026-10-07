@@ -347,3 +347,151 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })();
+/* -------------------- 文件下载 + 预览缩放 --------------------
+ * 1) DSH 文件面板没有下载入口 → 给每个文件行补一个 ⤓，交给桥的 /__file；
+ *    Android 的 DownloadListener 会把带 Content-Disposition 的响应转交系统下载器
+ *    （并带上 WebView 的 cookie，所以外网经隧道也能下）。
+ * 2) 图片 / PDF 预览按原始尺寸渲染（产品的既定行为），手机上一屏只看得见一角 →
+ *    默认给「适宽」，并浮出一条控制条：下载 / 适宽 / 1:1 / － / ＋。
+ * ------------------------------------------------------------ */
+(function () {
+  var ZOOMS = [50, 75, 100, 150, 200, 300];
+  var zoomIndex = 2;              /* 1:1 */
+  var mode = "fit";               /* fit | zoom */
+  var lastFile = { path: "", name: "" };
+  var barEl = null;
+
+  function list(sel, root) { return [].slice.call((root || document).querySelectorAll(sel)); }
+
+  function clearZoom() {
+    var keep = [].slice.call(document.body.classList).filter(function (c) { return c.indexOf("dshm-pv-") === 0; });
+    for (var i = 0; i < keep.length; i++) document.body.classList.remove(keep[i]);
+  }
+  function applyZoom() {
+    clearZoom();
+    document.body.classList.add(mode === "fit" ? "dshm-pv-fit" : "dshm-pv-z" + ZOOMS[zoomIndex]);
+    syncBar();
+  }
+  function label() { return mode === "fit" ? "适宽" : ZOOMS[zoomIndex] + "%"; }
+
+  function download(path, name) {
+    if (!path) return;
+    var a = document.createElement("a");
+    a.href = "/__file?path=" + encodeURIComponent(path);
+    a.rel = "noopener";
+    if (name) a.setAttribute("download", name);
+    document.body.appendChild(a);
+    a.click();
+    window.setTimeout(function () { if (a.parentNode) a.parentNode.removeChild(a); }, 0);
+  }
+
+  /* ---------- 文件行：补 ⤓ ---------- */
+  function nameOf(li) {
+    var n = li.querySelector('[class*="_name"]');
+    return n ? String(n.textContent || "").trim() : "";
+  }
+  function addRowButton(li) {
+    if (li.getAttribute("data-dshm-dl") === "1") return;
+    li.setAttribute("data-dshm-dl", "1");
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "dshm-dl";
+    btn.setAttribute("aria-label", "下载到手机");
+    btn.textContent = "\u2913";   /* ⤓ */
+    btn.addEventListener("click", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      download(li.getAttribute("data-files-path"), nameOf(li));
+    });
+    li.appendChild(btn);
+  }
+  function markRows() {
+    var rows = list('li[data-files-entry="file"][data-files-path]');
+    for (var i = 0; i < rows.length; i++) addRowButton(rows[i]);
+  }
+  /* 记住最近点开的文件，预览条上的「下载」用它 */
+  document.addEventListener("click", function (event) {
+    var t = event.target;
+    if (!t || !t.closest) return;
+    var li = t.closest('li[data-files-entry="file"][data-files-path]');
+    if (!li) return;
+    lastFile = { path: li.getAttribute("data-files-path") || "", name: nameOf(li) };
+    syncBar();
+  }, true);
+
+  /* ---------- 悬浮控制条 ---------- */
+  /* 预览必须**真的可见**才算数：后台标签页里也留着 DOM，否则控制条会浮在会话页上。 */
+  function hasMedia() {
+    var nodes = document.querySelectorAll("[data-image-preview], [data-pdf-preview]");
+    for (var i = 0; i < nodes.length; i++) {
+      var rect = nodes[i].getBoundingClientRect();
+      if (rect.width > 40 && rect.height > 40 && nodes[i].offsetParent !== null) return true;
+    }
+    return false;
+  }
+  function button(id, text, title) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.id = "dshm-pv-" + id;
+    b.textContent = text;
+    if (title) b.setAttribute("aria-label", title);
+    return b;
+  }
+  function ensureBar() {
+    if (barEl && barEl.parentNode) return barEl;
+    var bar = document.createElement("div");
+    bar.id = "dshm-pv-bar";
+    bar.className = "dshm-pv-bar";
+    var dl = button("dl", "\u2913", "下载到手机");
+    var fit = button("fit", "适宽");
+    var one = button("one", "1:1");
+    var minus = button("minus", "\u2212", "缩小");
+    var val = document.createElement("span");
+    val.className = "dshm-pv-val";
+    val.id = "dshm-pv-val";
+    var plus = button("plus", "\uFF0B", "放大");
+    dl.addEventListener("click", function () { download(lastFile.path, lastFile.name); });
+    fit.addEventListener("click", function () { mode = "fit"; applyZoom(); });
+    one.addEventListener("click", function () { mode = "zoom"; zoomIndex = 2; applyZoom(); });
+    minus.addEventListener("click", function () { mode = "zoom"; zoomIndex = Math.max(0, zoomIndex - 1); applyZoom(); });
+    plus.addEventListener("click", function () { mode = "zoom"; zoomIndex = Math.min(ZOOMS.length - 1, zoomIndex + 1); applyZoom(); });
+    bar.appendChild(dl); bar.appendChild(fit); bar.appendChild(one);
+    bar.appendChild(minus); bar.appendChild(val); bar.appendChild(plus);
+    document.body.appendChild(bar);
+    barEl = bar;
+    return bar;
+  }
+  /* 每一次写入都先比对：写 DOM 会再触发观察者/重排，早期版本在这里自激成死循环，
+     打开图片预览直接把页面卡死 —— 所以「值没变就不写」是硬要求，定时器是唯一的驱动源。 */
+  function setText(el, text) { if (el && el.textContent !== text) el.textContent = text; }
+  function setAttr(el, name, value) { if (el && el.getAttribute(name) !== value) el.setAttribute(name, value); }
+  function syncBar() {
+    if (!barEl) return;
+    setText(barEl.querySelector("#dshm-pv-val"), label());
+    setAttr(barEl.querySelector("#dshm-pv-fit"), "data-on", mode === "fit" ? "1" : "0");
+    setAttr(barEl.querySelector("#dshm-pv-one"), "data-on", mode === "zoom" && ZOOMS[zoomIndex] === 100 ? "1" : "0");
+    var dl = barEl.querySelector("#dshm-pv-dl");
+    if (dl) {
+      var disabled = !lastFile.path;
+      if (dl.disabled !== disabled) dl.disabled = disabled;
+      setAttr(dl, "aria-label", lastFile.path ? ("下载 " + lastFile.name + " 到手机") : "先从「文件」里点开一个文件");
+    }
+  }
+  function tick() {
+    markRows();
+    if (hasMedia()) {
+      var bar = ensureBar();
+      if (bar.hidden) bar.hidden = false;
+      if (document.body.className.indexOf("dshm-pv-") < 0) applyZoom();
+      syncBar();
+    } else if (barEl && !barEl.hidden) {
+      barEl.hidden = true;
+    }
+  }
+  function boot() {
+    tick();
+    window.setInterval(tick, 700);   /* 唯一的驱动源：不挂 MutationObserver，避免自触发 */
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
+  else boot();
+})();

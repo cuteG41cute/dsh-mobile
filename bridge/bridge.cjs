@@ -1826,6 +1826,67 @@ function serveApk(req, res) {
   if (!QUIET) log(clientIp(req) + " GET /__apk -> " + apk.name + " (" + apk.size + " bytes)");
 }
 
+/* --------------------- 文件下载（/__file：手机端「存到本机」） ---------------------
+ * DSH 的文件面板没有下载入口（点开只走应用内预览，而且预览是 RPC 取 base64 → blob），
+ * WebView 的下载器拿不到这些字节。所以由桥把文件按附件吐出去：
+ *     GET /__file?path=<绝对路径>
+ * Android 的 DownloadListener 会把带 Content-Disposition 的响应转交系统下载器，并带上
+ * WebView 的 cookie（里面就有接入口令），所以外网经隧道也能下。
+ * 路径即权限：走到这里说明设备认证 + 口令都已过关（桥口本身等价于本机 shell 权限）。
+ * ------------------------------------------------------------------------------- */
+const DOWNLOAD_MIME = {
+  jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif",
+  bmp: "image/bmp", svg: "image/svg+xml", avif: "image/avif", ico: "image/x-icon",
+  pdf: "application/pdf", txt: "text/plain; charset=utf-8", log: "text/plain; charset=utf-8",
+  ini: "text/plain; charset=utf-8", md: "text/markdown; charset=utf-8", json: "application/json",
+  csv: "text/csv; charset=utf-8", yml: "text/yaml; charset=utf-8", yaml: "text/yaml; charset=utf-8",
+  html: "text/html; charset=utf-8", css: "text/css; charset=utf-8", js: "text/javascript; charset=utf-8",
+  zip: "application/zip", gz: "application/gzip", tar: "application/x-tar", "7z": "application/x-7z-compressed",
+  doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  mp3: "audio/mpeg", m4a: "audio/mp4", wav: "audio/wav", ogg: "audio/ogg",
+  mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", mkv: "video/x-matroska",
+  apk: "application/vnd.android.package-archive", exe: "application/vnd.microsoft.portable-executable"
+};
+/** 附件名同时给 ASCII 兜底和 RFC 5987 的 UTF-8 名（中文名才不会乱码或被截断）。 */
+function attachmentHeader(name) {
+  const ascii = name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_") || "download";
+  return 'attachment; filename="' + ascii + '"; filename*=UTF-8\'\'' + encodeURIComponent(name);
+}
+function serveFileDownload(req, res, query) {
+  const raw = String(query.get("path") || "").trim().replace(/^"|"$/g, "");
+  if (!raw) {
+    res.writeHead(400, { "content-type": "text/plain; charset=utf-8" });
+    res.end("缺少 path 参数");
+    return;
+  }
+  const target = path.resolve(raw);
+  let stat;
+  try { stat = fs.statSync(target); } catch (error) {
+    res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+    res.end("文件不存在：" + path.basename(target));
+    return;
+  }
+  if (!stat.isFile()) {
+    res.writeHead(400, { "content-type": "text/plain; charset=utf-8" });
+    res.end("不是文件：" + path.basename(target));
+    return;
+  }
+  const name = path.basename(target);
+  const ext = name.slice(name.lastIndexOf(".") + 1).toLowerCase();
+  res.writeHead(200, {
+    "content-type": DOWNLOAD_MIME[ext] || "application/octet-stream",
+    "content-length": stat.size,
+    "content-disposition": attachmentHeader(name),
+    "cache-control": "no-store"
+  });
+  const stream = fs.createReadStream(target);
+  stream.on("error", function () { try { res.destroy(); } catch (error) { /* 已断开 */ } });
+  stream.pipe(res);
+  if (!QUIET) log(clientIp(req) + " GET /__file " + name + " (" + stat.size + " bytes)");
+}
+
 function splash(req, res) {
   const authority = req.headers.host || "";
   const urls = lanUrls();
@@ -1876,6 +1937,7 @@ const server = http.createServer(function (req, res) {
   }
   if (pathname === "/__bridge" || pathname === "/__bridge/") return splash(req, res);
   if (pathname === "/__apk") return serveApk(req, res);
+  if (pathname === "/__file") return serveFileDownload(req, res, query);   // 手机端「下载到本机」（见 serveFileDownload）
   if (pathname === "/__device") return serveDeviceInfo(req, res);
   if (pathname.indexOf("/.well-known/acme-challenge/") === 0) return serveAcmeChallenge(req, res, pathname);
   if (pathname === "/__qr.png") return serveQr(req, res, query);
