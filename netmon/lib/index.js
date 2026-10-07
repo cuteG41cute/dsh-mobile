@@ -9,7 +9,9 @@
 //   * GET  http://127.0.0.1:8099/__selftest  — bridge alive + injection state + upstream
 //   * GET  http://127.0.0.1:8099/__devices   — devices + LAN entry list
 //   * POST http://127.0.0.1:8099/__wan       — tunnel URL (token/qr are NEVER returned)
-//   * GET  https://<tunnel-host>/__ping      — real end-to-end tunnel probe
+//   * GET  https://<tunnel-host>[:port]/__ping — real end-to-end tunnel probe
+//     (the port matters: a TCP tunnel lives on host:port. A self-signed tunnel
+//      certificate is reported as "self-signed" + fingerprint, NOT as "down")
 //   * the tunnel certificate file, if present (days left)
 //
 // Every probe is individually timeout-guarded and never throws: the panel is a
@@ -18,11 +20,21 @@ import { Service } from '@deepseek-ai/cordis'
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import https from 'node:https'
+import os from 'node:os'
 
 export const ROUTE_PATH = '/dsh-netmon/api'
 const BRIDGE = 'http://127.0.0.1:8099'
-const CERT_DIR = 'C:\\ProgramData\\SakuraFrpService\\FrpcWorkingDirectory'
+// Certificate locations, both overridable by environment variable so nobody has to edit
+// code: an frp client drops its ACME cert into CERT_DIR, while a TCP tunnel terminated by
+// our own local HTTPS front keeps its self-signed pair next to the bridge.
+const CERT_DIR = process.env.DSH_NETMON_CERT_DIR || 'C:\\ProgramData\\SakuraFrpService\\FrpcWorkingDirectory'
 const CACHE_MS = 8000
+// A TCP tunnel terminates TLS at our own local front (share/dsh-mobile-bridge/certs).
+const SELF_CERT = process.env.DSH_NETMON_SELF_CERT
+  || path.join(os.homedir(), 'Documents', 'deeepseek harness', 'share', 'dsh-mobile-bridge', 'certs', 'cert.pem')
+// Fingerprint seen last time on a self-signed tunnel; a change is worth flagging.
+let knownFingerprint = ''
 
 async function getJson(url, ms, init) {
   const controller = new AbortController()
@@ -43,12 +55,14 @@ async function getJson(url, ms, init) {
 function certInfo(host) {
   if (!host) return { found: false }
   try {
-    const file = path.join(CERT_DIR, host + '.crt')
-    if (!fs.existsSync(file)) return { found: false }
+    const frpFile = path.join(CERT_DIR, host + '.crt')
+    const file = fs.existsSync(frpFile) ? frpFile : (fs.existsSync(SELF_CERT) ? SELF_CERT : '')
+    if (file === '') return { found: false }
     const cert = new crypto.X509Certificate(fs.readFileSync(file))
     const expires = new Date(cert.validTo)
     return {
       found: true,
+      selfSigned: file === SELF_CERT,
       expiresAt: expires.toISOString(),
       daysLeft: Math.max(0, Math.floor((expires.getTime() - Date.now()) / 86400000)),
       issuer: cert.issuer ? String(cert.issuer).slice(0, 120) : undefined,
@@ -56,6 +70,37 @@ function certInfo(host) {
   } catch (error) {
     return { found: false, error: error && error.message ? error.message : String(error) }
   }
+}
+
+/**
+ * https GET that tolerates a self-signed certificate and reports what TLS saw.
+ * Only the tunnel probe uses it and it sends no credentials. Rationale: a TCP tunnel is
+ * terminated by our own local HTTPS front with a self-signed certificate, so a probe that
+ * enforces the system trust store fails (DEPTH_ZERO_SELF_SIGNED_CERT) while the path is
+ * perfectly alive. Anything answering HTTP proves the path is up.
+ */
+function probeInsecure(authority, port, timeoutMs) {
+  return new Promise((resolve) => {
+    let done = false
+    const finish = (value) => { if (!done) { done = true; resolve(value) } }
+    const req = https.request({
+      host: authority, port, path: '/__ping', method: 'GET', timeout: timeoutMs,
+      rejectUnauthorized: false, headers: { host: authority + ':' + port },
+    }, (res) => {
+      let cert = null
+      try { cert = res.socket.getPeerCertificate() } catch { }
+      res.resume()
+      res.on('end', () => finish({
+        status: res.statusCode || 0,
+        fingerprint: cert && cert.fingerprint256 ? cert.fingerprint256 : '',
+        validTo: cert && cert.valid_to ? cert.valid_to : '',
+        selfSigned: !!(cert && cert.issuer === cert.subject),
+      }))
+    })
+    req.on('timeout', () => { req.destroy(); finish({ status: 0, error: 'timeout' }) })
+    req.on('error', (error) => finish({ status: 0, error: error.code || error.message }))
+    req.end()
+  })
 }
 
 export class NetMonService extends Service {
@@ -143,18 +188,48 @@ export class NetMonService extends Service {
     })
     const wj = wan.json !== null && typeof wan.json === 'object' ? wan.json : {}
     const wanUrl = typeof wj.url === 'string' && wj.url !== '' ? wj.url : ''
+    // 3b) the port matters: a TCP tunnel is reached as host:port, and dropping it would
+    // probe :443 on the node instead -- a different service that answers 501.
     let host = ''
-    try { host = wanUrl === '' ? '' : new URL(wanUrl).hostname } catch { host = '' }
+    let port = 443
+    try {
+      if (wanUrl !== '') {
+        const parsed = new URL(wanUrl)
+        host = parsed.hostname
+        port = parsed.port === '' ? (parsed.protocol === 'http:' ? 80 : 443) : Number(parsed.port)
+      }
+    } catch { host = '' }
 
     // 4) real end-to-end tunnel probe (any HTTP response proves the path is up)
-    let tunnel = { configured: host !== '', host, url: wanUrl, up: false, status: 0, ms: null }
+    let tunnel = { configured: host !== '', host, port, url: wanUrl, up: false, status: 0, ms: null }
     if (host !== '') {
       const t1 = Date.now()
-      const ping = await getJson('https://' + host + '/__ping', 4000)
-      tunnel = {
-        configured: true, host, url: wanUrl,
-        up: ping.status > 0, status: ping.status, ms: Date.now() - t1,
-        error: ping.status > 0 ? undefined : (ping.error || 'unreachable'),
+      const ping = await getJson('https://' + host + ':' + port + '/__ping', 4000)
+      if (ping.status > 0) {
+        tunnel = {
+          configured: true, host, port, url: wanUrl,
+          up: true, status: ping.status, ms: Date.now() - t1,
+        }
+      } else {
+        // The system trust store refused it. That is expected for a self-signed tunnel --
+        // retry without verification so a live tunnel is not reported as down.
+        const retry = await probeInsecure(host, port, 4000)
+        if (retry.status > 0) {
+          const changed = knownFingerprint !== '' && retry.fingerprint !== '' && retry.fingerprint !== knownFingerprint
+          if (retry.fingerprint !== '') knownFingerprint = retry.fingerprint
+          tunnel = {
+            configured: true, host, port, url: wanUrl,
+            up: true, status: retry.status, ms: Date.now() - t1,
+            selfSigned: true, fingerprint: retry.fingerprint, validTo: retry.validTo,
+            fingerprintChanged: changed, trustError: ping.error || '',
+          }
+        } else {
+          tunnel = {
+            configured: true, host, port, url: wanUrl,
+            up: false, status: 0, ms: Date.now() - t1,
+            error: ping.error || retry.error || 'unreachable',
+          }
+        }
       }
     }
 

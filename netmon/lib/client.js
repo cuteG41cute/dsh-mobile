@@ -57,6 +57,7 @@ window.__ModuleLoader__.load({
       if (state.ok !== true) return { text: '失败', color: 'var(--dsw-alias-state-error-primary, #d92d20)' };
       if (!state.bridge || state.bridge.up !== true) return { text: '桥掉线', color: 'var(--dsw-alias-state-error-primary, #d92d20)' };
       if (state.tunnel && state.tunnel.configured === true && state.tunnel.up !== true) return { text: '隧道断', color: '#f59e0b' };
+      if (state.tunnel && state.tunnel.selfSigned === true) return { text: '正常·自签', color: 'var(--dsw-static-deepseek-500, #4d6bfe)' };
       return { text: '正常', color: 'var(--dsw-static-deepseek-500, #4d6bfe)' };
     }
 
@@ -122,11 +123,19 @@ window.__ModuleLoader__.load({
         t.configured !== true
           ? line('e', '—', '未配置外网地址（设置 → 手机端 → 外网访问）')
           : react.createElement('div', { key: 'c' }, [
-            line('u', '地址', react.createElement('span', { style: monoStyle }, t.host)),
-            line('r', '可达', t.up === true ? ('是 · ' + t.ms + ' ms（HTTP ' + t.status + '）') : ('否 · ' + (t.error || 'unreachable'))),
+            line('u', '地址', react.createElement('span', { style: monoStyle }, t.host + (t.port && t.port !== 443 ? ':' + t.port : ''))),
+            line('r', '可达', t.up === true
+              ? ('是 · ' + t.ms + ' ms（HTTP ' + t.status + '）' + (t.selfSigned === true ? ' · 自签证书' : ''))
+              : ('否 · ' + (t.error || 'unreachable'))),
+            t.selfSigned === true
+              ? line('f', '指纹', react.createElement('span', { style: monoStyle }, t.fingerprint || '（未取到）'))
+              : null,
+            t.fingerprintChanged === true
+              ? line('w', '⚠ 变更', '指纹和上次不同 —— 换过证书？如果不是你换的就要警惕')
+              : null,
             cert.found === true
-              ? line('k', '证书', '剩余 ' + cert.daysLeft + ' 天（' + String(cert.expiresAt).slice(0, 10) + ' 到期）')
-              : line('k2', '证书', '未找到自动续期证书文件'),
+              ? line('k', '证书', (cert.selfSigned === true ? '自签 · ' : '') + '剩余 ' + cert.daysLeft + ' 天（' + String(cert.expiresAt).slice(0, 10) + ' 到期）')
+              : line('k2', '证书', '未找到证书文件'),
           ]),
       ]));
 
@@ -163,7 +172,7 @@ window.__ModuleLoader__.load({
       const status = statusOf(state);
       const detail = state && state.ok === true && state.bridge
         ? ('桥 ' + (state.bridge.up ? state.bridge.ms + 'ms' : '掉线')
-          + (state.tunnel && state.tunnel.configured ? (' · 隧道 ' + (state.tunnel.up ? state.tunnel.ms + 'ms' : '断')) : ''))
+          + (state.tunnel && state.tunnel.configured ? (' · 隧道 ' + (state.tunnel.up ? state.tunnel.ms + 'ms' + (state.tunnel.selfSigned ? '（自签）' : '') : '断')) : ''))
         : '点击查看网络与隧道状态';
       return react.createElement('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 6, position: 'relative' } }, [
         react.createElement('button', {
