@@ -192,8 +192,11 @@
        项目、分组这类「展开/收起」行带 aria-expanded，点它们只切换展开状态，抽屉保持打开 */
     var hit = t.closest('[class*="_sessionRow"], [class*="_searchResultRow"], [data-session-id], [role="treeitem"]');
     if (hit && !hit.hasAttribute("aria-expanded")) {
-      window.setTimeout(closeDrawer, 220);
-      suppressComposerFocus(1200);
+      /* 关键：只有**我们自己的抽屉**开着时才收（isDrawerOpen 只在窄屏门控里被置上）。
+         桌面窗口同样会加载这份注入（桌面版走桥），它的侧栏本来就是展开的——
+         不加这个判断，桌面端一点会话就会去点产品的「收起侧边栏」，把侧栏收掉。 */
+      if (isDrawerOpen()) window.setTimeout(closeDrawer, 220);
+      if (window.innerWidth <= MOBILE_MAX_WIDTH) suppressComposerFocus(1200);   /* 只有手机端才需要防键盘弹出 */
       return;
     }
     if (isPanelOpen() && !t.closest("#dshm-plugin-toggle") && !t.closest("[data-dshm-chip]")) setPanel(false);
