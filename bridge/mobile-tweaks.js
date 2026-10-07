@@ -580,3 +580,36 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
   else boot();
 })();
+/* -------------------- 安卓返回键：先关浮层，再收边栏 --------------------
+ * 手机上没有 Esc：系统返回键在 WebView 里会走「后退/重载」，把用户正在看的位置弄丢。
+ * 这里暴露一个 window.__dshmBack()，由 App（≥1.3.5）在 onBackPressed 里调用：
+ *   返回 true  = 这一下已经消费掉（关掉了长按菜单 / 插件面板 / 左抽屉 / 右栏）
+ *   返回 false = 页面不管，交给 App 自己决定（退到后台，不重载）
+ * 判据全部走 DOM 与可见性：产品里「打开/收起」两个按钮在 DOM 里始终并存，
+ * 不查 visibility 就会在收起态误点「收起右侧边栏」——那等于又把它打开了。
+ * -------------------------------------------------------------------- */
+(function () {
+  function visibleButton(re) {
+    var btns = document.querySelectorAll("button[aria-label]");
+    for (var i = 0; i < btns.length; i++) {
+      var label = btns[i].getAttribute("aria-label") || "";
+      if (!re.test(label)) continue;
+      var style = window.getComputedStyle(btns[i]);
+      var rect = btns[i].getBoundingClientRect();
+      if (style.visibility === "hidden" || style.display === "none" || rect.width < 1 || rect.height < 1) continue;
+      return btns[i];
+    }
+    return null;
+  }
+  window.__dshmBack = function () {
+    var menu = document.getElementById("dshm-pv-menu");            /* ① 预览长按菜单 */
+    if (menu) { if (menu.parentNode) menu.parentNode.removeChild(menu); return true; }
+    var pill = document.getElementById("dshm-plugin-toggle");      /* ② 「插件」面板 */
+    if (pill && pill.classList.contains("dshm-open")) { pill.click(); return true; }
+    var left = visibleButton(/收起侧边栏|收起导航|Collapse sidebar/i);  /* ③ 左抽屉 */
+    if (left) { left.click(); return true; }
+    var right = visibleButton(/收起右侧边栏|收起右侧|Collapse right/i); /* ④ 右栏（预览所在） */
+    if (right) { right.click(); return true; }
+    return false;
+  };
+})();

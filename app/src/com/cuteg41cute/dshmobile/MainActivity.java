@@ -531,13 +531,30 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (webView.canGoBack()) {
+        /* 先问页面：浮层（长按菜单 / 插件面板 / 左抽屉 / 右栏预览）开着就让页面自己收掉。
+           这一步是同步之前先返回的——不能在没问清楚前就 goBack()，否则页面会被后退重载，
+           用户正在看的位置就丢了（这正是之前的体验问题）。 */
+        if (webView != null) {
+            webView.evaluateJavascript("(window.__dshmBack && window.__dshmBack()) === true", new ValueCallback<String>() {
+                @Override public void onReceiveValue(String value) {
+                    if ("true".equals(value)) return;      /* 页面已消费掉这次返回 */
+                    fallbackBack();
+                }
+            });
+            return;
+        }
+        fallbackBack();
+    }
+
+    /** 页面不接管时：优先历史后退；否则按「再按一次退出」的老规矩。绝不 reload。 */
+    private void fallbackBack() {
+        if (webView != null && webView.canGoBack()) {
             webView.goBack();
             return;
         }
         long now = System.currentTimeMillis();
         if (now - lastBackPressedAt < BACK_EXIT_INTERVAL_MS) {
-            super.onBackPressed();
+            moveTaskToBack(true);          /* 退到后台，保留 WebView 状态（不重载） */
         } else {
             lastBackPressedAt = now;
             Toast.makeText(this, "再按一次返回键退出", Toast.LENGTH_SHORT).show();

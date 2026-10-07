@@ -247,6 +247,8 @@ DSH 的「文件」面板没有下载入口（点开只走应用内预览，而�
 两个连带修的点（都在 App ≥ 1.3.5）：
 - **`/__ping` 不再被口令闸门拦**：悬浮球的延迟探测是原生 `HttpURLConnection`，不共享 WebView 的 cookie jar，走隧道时会每 5 秒被 `外网入口被拦（缺口令）` 拦一次（实测累计 1032 次、日志被刷屏，延迟数字本身仍然有效——403 也是桥在这一跳回的响应，任何 HTTP 响应都算一次往返）。修法与下载同源：`CookieManager.getInstance().getCookie(url)` 取到 WebView 的 cookie（里面有 `dshm-key`）→ `conn.setRequestProperty("Cookie", cookie)`，于是与页面同等待遇。**原生请求不共享 cookie** 是这事儿的全部根因，App 里凡是绕过 WebView 自己发起的请求都要记得补这一步。
 - **版本号以清单为准**：`build.ps1 -VersionCode/-VersionName` 只影响输出文件名，aapt2 的 `--version-code` 盖不住 `AndroidManifest.xml` 里的值——不改清单就会得到「文件名 1.3.4、装上去还是 1.3.3」的错标包（本仓库踩过，已修正）。
+还有一个和返回键有关的坑（App ≥ 1.3.5）：
+- **系统的「打开/收起」按钮在 DOM 里始终并存**，收起态的那个只是 `visibility:hidden`。`window.__dshmBack()` 里若不查可见性就按 `aria-label` 匹配，会在右栏已经收起时误点「收起右侧边栏」——等于又把面板打开了。判据必须是「标签匹配 **且** 可见 **且** 有尺寸」。
 
 ### 9.3 APK 分发
 
