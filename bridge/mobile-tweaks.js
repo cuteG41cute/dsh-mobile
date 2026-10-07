@@ -119,14 +119,44 @@
     menu.style.left = "4px";
   }
 
-  /* ---------- 插件面板 ---------- */
-  function tagChips() {
-    var bs = document.querySelectorAll("button");
-    for (var i = 0; i < bs.length; i++) {
-      if (CHIP_RE.test((bs[i].innerText || "").trim())) bs[i].setAttribute("data-dshm-chip", "1");
-    }
-  }
+  /* ---------- 插件面板 ----------
+   * 哪些控件进「插件」面板：**动态归集，不认标签**。
+   * 顶栏工具区（headerUtilities）里的每一个控件都算一枚芯片。插件是随时可能新增的第三方，
+   * 一旦写死「时间戳/记忆库/备份」这种白名单，新插件的芯片就永远进不来（netmon 就是这么被漏掉的）。
+   * 找不到工具区时（别的 DSH 版本）退回老的文字白名单，行为与以前一致。
+   * ------------------------------------------------------------------ */
   function utilities() { return document.querySelector('div[class*="_headerUtilities"]'); }
+  function tagChips() {
+    var util = utilities();
+    var keep = [];
+    if (util) {
+      var nodes = util.querySelectorAll('button, [role="button"], a[href]');
+      for (var i = 0; i < nodes.length; i++) {
+        var node = nodes[i];
+        if (node.id && node.id.indexOf("dshm-") === 0) continue;   /* 我们自己贴上的不进面板 */
+        /* 判定「是不是芯片」只看一件事：有没有可见文字。
+           插件芯片都带文字（时间戳 开 / 网络 正常 / 记忆库 开 …），而产品自己的图标按钮
+           （在文件资源管理器中打开工作目录 / 选择打开方式 / 更多操作）只有图标 + aria-label，
+           把它们吞进「插件」面板既名不副实、又会让用户找不到产品功能。 */
+        var label = (node.innerText || node.textContent || "").trim();
+        if (!label) continue;
+        node.setAttribute("data-dshm-chip", "1");
+        keep.push(node);
+      }
+      /* 曾经标记过、现在已不在工具区里的：撤掉标记，别在面板里留孤儿 */
+      var tagged = document.querySelectorAll("[data-dshm-chip]");
+      for (var j = 0; j < tagged.length; j++) {
+        if (keep.indexOf(tagged[j]) < 0) tagged[j].removeAttribute("data-dshm-chip");
+      }
+    } else {
+      var bs = document.querySelectorAll("button");
+      for (var k = 0; k < bs.length; k++) {
+        if (CHIP_RE.test((bs[k].innerText || "").trim())) bs[k].setAttribute("data-dshm-chip", "1");
+      }
+    }
+    /* 面板开着的时候有新芯片进来（插件晚一步渲染），立刻补位 */
+    if (document.body && document.body.classList.contains("dshm-plugins-open")) layoutPanel();
+  }
   function isPanelOpen() { return document.body.classList.contains("dshm-plugins-open"); }
   function layoutPanel() {
     var pill = document.getElementById("dshm-plugin-toggle");
