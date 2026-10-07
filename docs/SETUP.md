@@ -31,7 +31,7 @@ node share/dsh-mobile-bridge/bridge.cjs
 
 1. 隧道指向 `127.0.0.1:8099`（HTTPS 建站隧道要开「自动 HTTPS」，因为桥只提供 HTTP）；
 2. 域名 CNAME 指向隧道节点；
-3. 证书：`ACME_DOMAIN=你的域名 node tools/acme-renew.cjs`（纯 Node 的 ACME，HTTP-01，无需服务商 API 密钥）；
+3. 证书：怎么签发、要不要续期，由你的部署自己决定——公网 CA 或自签都行（用自签时，App 首次连接会弹出指纹让你核对并记住）；
 4. 面板里填外网地址 → 生成二维码 → 手机扫一次。
 
 ## 4. 与环境无关的部分（可放心复用）

@@ -17,22 +17,14 @@
 // Every probe is individually timeout-guarded and never throws: the panel is a
 // diagnostic, a dead bridge must render as "down", not break the page.
 import { Service } from '@deepseek-ai/cordis'
-import fs from 'node:fs'
-import path from 'node:path'
-import crypto from 'node:crypto'
 import https from 'node:https'
-import os from 'node:os'
 
 export const ROUTE_PATH = '/dsh-netmon/api'
 const BRIDGE = 'http://127.0.0.1:8099'
-// Certificate locations, both overridable by environment variable so nobody has to edit
-// code: an frp client drops its ACME cert into CERT_DIR, while a TCP tunnel terminated by
-// our own local HTTPS front keeps its self-signed pair next to the bridge.
-const CERT_DIR = process.env.DSH_NETMON_CERT_DIR || 'C:\\ProgramData\\SakuraFrpService\\FrpcWorkingDirectory'
 const CACHE_MS = 8000
-// A TCP tunnel terminates TLS at our own local front (share/dsh-mobile-bridge/certs).
-const SELF_CERT = process.env.DSH_NETMON_SELF_CERT
-  || path.join(os.homedir(), 'Documents', 'deeepseek harness', 'share', 'dsh-mobile-bridge', 'certs', 'cert.pem')
+// Everything below is learned from the live connection. Deliberately no local file paths and
+// no assumption about which tunnel client is used or where it keeps its certificate -- how a
+// deployment obtains and installs its certificate is its own business.
 // Fingerprint seen last time on a self-signed tunnel; a change is worth flagging.
 let knownFingerprint = ''
 
@@ -52,20 +44,17 @@ async function getJson(url, ms, init) {
   }
 }
 
-function certInfo(host) {
-  if (!host) return { found: false }
+/** Certificate facts, derived only from what the handshake told us. */
+function certFromHandshake(tunnel) {
+  if (!tunnel || tunnel.selfSigned !== true || !tunnel.validTo) return { found: false }
   try {
-    const frpFile = path.join(CERT_DIR, host + '.crt')
-    const file = fs.existsSync(frpFile) ? frpFile : (fs.existsSync(SELF_CERT) ? SELF_CERT : '')
-    if (file === '') return { found: false }
-    const cert = new crypto.X509Certificate(fs.readFileSync(file))
-    const expires = new Date(cert.validTo)
+    const expires = new Date(tunnel.validTo)
+    if (isNaN(expires.getTime())) return { found: false }
     return {
       found: true,
-      selfSigned: file === SELF_CERT,
+      selfSigned: true,
       expiresAt: expires.toISOString(),
       daysLeft: Math.max(0, Math.floor((expires.getTime() - Date.now()) / 86400000)),
-      issuer: cert.issuer ? String(cert.issuer).slice(0, 120) : undefined,
     }
   } catch (error) {
     return { found: false, error: error && error.message ? error.message : String(error) }
@@ -233,8 +222,8 @@ export class NetMonService extends Service {
       }
     }
 
-    // 5) certificate days left (frp writes the ACME cert here; absent = skipped)
-    const cert = certInfo(host)
+    // 5) certificate facts -- straight from the handshake we just did
+    const cert = certFromHandshake(tunnel)
 
     return {
       ok: true,

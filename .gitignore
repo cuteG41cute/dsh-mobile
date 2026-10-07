@@ -2,9 +2,11 @@
 device-settings.json
 device-settings.json.bak-*
 bridge.log
-acme/
-acme-state/
-acme-renew.log
+tls-front.log
+
+# TLS 私钥（自签证书那套是部署方自己的东西，永远不该进仓库）
+certs/
+*.pem
 
 # 签名密钥与构建产物
 keystore/

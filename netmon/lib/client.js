@@ -134,8 +134,8 @@ window.__ModuleLoader__.load({
               ? line('w', '⚠ 变更', '指纹和上次不同 —— 换过证书？如果不是你换的就要警惕')
               : null,
             cert.found === true
-              ? line('k', '证书', (cert.selfSigned === true ? '自签 · ' : '') + '剩余 ' + cert.daysLeft + ' 天（' + String(cert.expiresAt).slice(0, 10) + ' 到期）')
-              : line('k2', '证书', '未找到证书文件'),
+              ? line('k', '证书', '自签 · 剩余 ' + cert.daysLeft + ' 天（' + String(cert.expiresAt).slice(0, 10) + ' 到期）')
+              : line('k2', '证书', t.up === true ? '受信任（系统证书链）' : '—'),
           ]),
       ]));
 
