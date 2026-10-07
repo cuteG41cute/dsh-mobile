@@ -252,3 +252,20 @@ body.dshm-pv-fit [data-pdf-page], body.dshm-pv-fit [data-pdf-page] canvas { max-
 }
 #dshm-pv-menu button:active { background: rgba(127, 127, 127, 0.25); }
 #dshm-pv-menu button:disabled { opacity: 0.4; }
+
+/* ---------- 图片附件查看器（点开聊天里的图片）----------
+ * 实测：产品给浮层写的是 width:388px（= 视口 − 12）+ padding:40px + content-box，
+ * 内边距加在外面 → 实际占位 468px，比 400px 的视口宽 68px；图在那一列里居中，
+ * 于是相对屏幕偏右 34px、右边还被切掉。
+ * 修法只用两条：① 切成 border-box（40px 内边距算在 388 里）；
+ * ② inset:0 + 固定宽度时用 margin:auto 把浮层自身水平居中 → 图就落在屏幕正中。
+ * 缩放由 JS 挂手势（transform），这里只管居中与手势友好。 */
+.dshm-iv {
+  box-sizing: border-box !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+.dshm-iv > img {
+  transform-origin: 50% 50% !important;
+  will-change: transform;
+}

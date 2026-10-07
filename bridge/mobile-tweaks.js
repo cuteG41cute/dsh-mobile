@@ -310,6 +310,110 @@
     lastChip = chip;
   }, true);
 
+  /* ---------- 图片附件查看器：居中 + 手势缩放（每次打开都从 1× 开始） ----------
+   * 产品的查看器是 position:fixed + inset:0，但 width:388px 配 content-box 再加 40px 内边距
+   * = 468px，比手机视口还宽：图在那一列(388)里居中，于是相对屏幕偏右 34px、右边还被切掉。
+   * 这里只做两件事——把浮层压回视口宽（border-box + 100vw），给图挂手势。
+   * 缩放状态跟着「这一次打开」走：换元素或从关闭变打开都先归零，不继承上一次。
+   * ------------------------------------------------------------------ */
+  var ivBox = null, ivImg = null, ivScale = 1, ivX = 0, ivY = 0;
+  var ivStartDist = 0, ivStartScale = 1, ivStartX = 0, ivStartY = 0, ivPanX = 0, ivPanY = 0;
+  var ivWasOpen = false, ivLastTap = 0, ivMoved = false;
+
+  /** 结构判定，不认哈希类名：铺满屏幕的 fixed 层 + 一张大图 + 至少一个按钮。 */
+  function imageViewer() {
+    var all = document.querySelectorAll("div, section");
+    var vw = window.innerWidth, vh = window.innerHeight;
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      var cs = window.getComputedStyle(el);
+      if (cs.position !== "fixed" || cs.display === "none" || cs.visibility === "hidden") continue;
+      var r = el.getBoundingClientRect();
+      if (r.width < vw * 0.8 || r.height < vh * 0.8) continue;
+      var img = el.querySelector("img");
+      if (!img || img.naturalWidth < 300) continue;
+      if (!el.querySelector("button")) continue;
+      return { box: el, img: img };
+    }
+    return null;
+  }
+  function ivApply() {
+    if (!ivImg) return;
+    if (ivScale <= 1.001 && ivX === 0 && ivY === 0) { ivImg.style.transform = ""; return; }
+    ivImg.style.transform = "translate(" + Math.round(ivX) + "px," + Math.round(ivY) + "px) scale(" + ivScale.toFixed(4) + ")";
+  }
+  function ivReset() { ivScale = 1; ivX = 0; ivY = 0; ivMoved = false; ivApply(); }
+  function ivDist(t) {
+    var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  function ivOnStart(e) {
+    if (e.touches.length === 2) {
+      ivStartDist = ivDist(e.touches) || 1;
+      ivStartScale = ivScale;
+      ivMoved = false;
+    } else if (e.touches.length === 1) {
+      var now = Date.now();
+      if (now - ivLastTap < 320) {                 /* 双击：1× ↔ 2.5× */
+        ivScale = ivScale > 1.2 ? 1 : 2.5;
+        if (ivScale === 1) { ivX = 0; ivY = 0; }
+        ivApply();
+        ivLastTap = 0;
+        e.preventDefault();
+        return;
+      }
+      ivLastTap = now;
+      ivStartX = e.touches[0].clientX; ivStartY = e.touches[0].clientY;
+      ivPanX = ivX; ivPanY = ivY;
+    }
+  }
+  function ivOnMove(e) {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      var s = ivStartScale * (ivDist(e.touches) / ivStartDist);
+      ivScale = Math.min(8, Math.max(1, s));
+      if (ivScale <= 1.01) { ivX = 0; ivY = 0; }
+      ivMoved = true;
+      ivApply();
+    } else if (e.touches.length === 1 && ivScale > 1.01) {
+      e.preventDefault();
+      ivX = ivPanX + (e.touches[0].clientX - ivStartX);
+      ivY = ivPanY + (e.touches[0].clientY - ivStartY);
+      if (Math.abs(ivX - ivPanX) + Math.abs(ivY - ivPanY) > 8) ivMoved = true;
+      ivApply();
+    }
+  }
+  function ivOnEnd() {
+    if (ivScale <= 1.01) { ivScale = 1; ivX = 0; ivY = 0; ivApply(); }
+  }
+  function ivOnClick(e) {
+    if (!ivMoved) return;
+    ivMoved = false;
+    /* 拖动/缩放刚结束的那一下点击别当成「点背景关闭」——
+       但点在按钮上（关闭 / 下载 …）必须放行，否则关不掉（实测踩过）。 */
+    if (e.target && e.target.closest && e.target.closest("button")) return;
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  function syncImageViewer() {
+    var found = imageViewer();
+    if (!found) { ivBox = null; ivImg = null; ivWasOpen = false; return; }
+    if (found.box !== ivBox) {
+      ivBox = found.box;
+      ivImg = found.img;
+      ivBox.classList.add("dshm-iv");
+      ivReset();                                   /* 新的一次打开：从 1× 开始 */
+      ivBox.addEventListener("touchstart", ivOnStart, { passive: false });
+      ivBox.addEventListener("touchmove", ivOnMove, { passive: false });
+      ivBox.addEventListener("touchend", ivOnEnd, { passive: true });
+      ivBox.addEventListener("click", ivOnClick, true);
+    } else {
+      ivImg = found.img || ivImg;
+      if (!ivWasOpen) ivReset();                   /* 同一元素再次打开，也要归零 */
+    }
+    ivWasOpen = true;
+  }
+
   /* ---------- 点会话 / 点别处 ---------- */
   function suppressComposerFocus(ms) {
     var until = Date.now() + ms;
@@ -410,6 +514,7 @@
     enableCrumbs();
     tagChips();
     clampChipPanels();
+    syncImageViewer();
     ensurePill();
   }
   try {
