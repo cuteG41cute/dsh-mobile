@@ -85,6 +85,8 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> pendingFileCallback;
     private long lastBackPressedAt = 0L;
     private String serverUrl = DEFAULT_URL;
+    /* 最近一次测量失败的原因（TLS / 超时 / DNS …）。悬浮球不再只显示一个看不出信息的 ——。 */
+    private volatile String rttError = "";
     /* 备用地址：只在「主用地址预检不通」时启用，平时完全不参与，主路径行为不变 */
     private String serverAlt = "";
     /* 上一次生效的备用地址，用来判断设置里改过没有 */
@@ -117,6 +119,15 @@ public class MainActivity extends Activity {
 
     private static final String JS_TOGGLE_SIDEBAR =
             "(function(){try{" + JS_FIND_TOGGLE + "b.click();var l=b.getAttribute('aria-label')||'';return 'clicked:'+l;}catch(e){return 'err:'+e.message;}})()";
+
+    /* 悬浮球的往返延迟优先用「页面自己的 fetch」来量：
+       它跟页面走同一条链路——同一个 cookie jar、同一份证书信任、同一个代理/VPN 路径。
+       自签证书站上原生请求可能整条路都过不去（球就永远显示 ——），而页面这条路一定通。 */
+    private static final String JS_RTT_START =
+            "(function(){try{window.__dshRtt=-1;var t=performance.now();"
+            + "fetch('/__ping?r='+Math.random(),{cache:'no-store'})"
+            + ".then(function(){window.__dshRtt=Math.round(performance.now()-t);})"
+            + ".catch(function(){window.__dshRtt=-2;});return 1;}catch(e){return 0;}})()";
 
     private static final String JS_EXPAND_IF_NARROW =
             "(function(){try{if(window.innerWidth>=1024)return 'wide';" + JS_FIND_TOGGLE
@@ -395,6 +406,15 @@ public class MainActivity extends Activity {
         }
     }
 
+    private static String shortReason(Exception e) {
+        if (e instanceof javax.net.ssl.SSLException) return "TLS";
+        if (e instanceof java.net.SocketTimeoutException) return "超时";
+        if (e instanceof java.net.UnknownHostException) return "DNS";
+        if (e instanceof java.net.ConnectException) return "拒连";
+        String name = e.getClass().getSimpleName();
+        return name.length() > 4 ? name.substring(0, 4) : name;
+    }
+
     private int measureRtt(String target) {
         HttpURLConnection conn = null;
         try {
@@ -407,16 +427,28 @@ public class MainActivity extends Activity {
             /* 自签证书的站：原生请求默认走系统信任链，会直接被拒 → 球一直显示 --。
                这里用已记住的指纹建一个只认它的 SSLContext，跟 WebView 侧的信任保持一致。 */
             if (conn instanceof HttpsURLConnection) {
-                NetTools.applyPin(conn, trustedPins(Uri.parse(target).getHost()));
+                try {
+                    NetTools.applyPin(conn, trustedPins(Uri.parse(target).getHost()));
+                } catch (Exception e) {
+                    /* 指纹装不上也要继续：退回系统信任链试一次，别让这一步把整次测量判死 */
+                    Log.w(TAG, "applyPin failed", e);
+                }
             }
             /* 这是原生请求，不共享 WebView 的 cookie jar：不带上就会在走隧道时
                过不了桥的接入口令闸门（每 5 秒被拦一次、日志刷屏），带上就跟页面同等待遇。
                与下载（startDownload）用的是同一招，那条路已在真机上验证过。 */
-            String cookie = CookieManager.getInstance().getCookie(target);
-            if (cookie != null && !cookie.isEmpty()) conn.setRequestProperty("Cookie", cookie);
+            try {
+                String cookie = CookieManager.getInstance().getCookie(target);
+                if (cookie != null && !cookie.isEmpty()) conn.setRequestProperty("Cookie", cookie);
+            } catch (Exception e) {
+                /* cookie 只是「可选的通行证」：没有它最坏是被桥回 403 —— 那也算一次有效往返 */
+                Log.w(TAG, "cookie read failed", e);
+            }
             conn.getResponseCode();
             return (int) Math.max(1L, System.currentTimeMillis() - t0);
         } catch (Exception e) {
+            rttError = shortReason(e);
+            Log.w(TAG, "ping failed: " + target + " -> " + rttError, e);
             return -1;
         } finally {
             if (conn != null) conn.disconnect();
@@ -426,8 +458,12 @@ public class MainActivity extends Activity {
     private void paintLatency(int ms) {
         if (ball == null) return;
         if (ms < 0) {
-            ball.setLatency("--", Color.parseColor("#9CA3AF"));
-            ball.setContentDescription(getString(R.string.ball_desc) + "：暂时测不到延迟");
+            /* 测不到时不再只显示 ——：把原因写出来（TLS / 超时 / DNS …），
+               否则"不工作"和"没在测"从球上完全看不出来。 */
+            String why = rttError == null || rttError.isEmpty() ? "--" : rttError;
+            ball.setLatency(why, Color.parseColor("#F87171"));
+            ball.setContentDescription(getString(R.string.ball_desc) + "：测不到往返延迟"
+                    + (rttError == null || rttError.isEmpty() ? "" : "（" + rttError + "）"));
             return;
         }
         ball.setLatency(ms >= 1000 ? String.format(java.util.Locale.US, "%.1fs", ms / 1000f) : String.valueOf(ms),
@@ -438,16 +474,50 @@ public class MainActivity extends Activity {
     private final Runnable ballPoll = new Runnable() {
         @Override public void run() {
             if (!ballPolling) return;
-            final String target = pingUrl();
-            new Thread(new Runnable() {
-                @Override public void run() {
-                    final int ms = measureRtt(target);
-                    ballHandler.post(new Runnable() { @Override public void run() { paintLatency(ms); } });
-                }
-            }).start();
+            pollLatency();
             ballHandler.postDelayed(this, 5000L);
         }
     };
+
+    /**
+     * 量一次往返：先用页面的 fetch（同一条链路，最贴近用户真实的体感），
+     * 页面这条路拿不到数（还在加载 / 出错页 / 没有页面）时才退回原生请求。
+     */
+    private void pollLatency() {
+        if (webView == null) { nativePoll(); return; }
+        webView.evaluateJavascript(JS_RTT_START, null);
+        ballHandler.postDelayed(new Runnable() {
+            @Override public void run() {
+                if (!ballPolling) return;
+                if (webView == null) { nativePoll(); return; }
+                webView.evaluateJavascript("window.__dshRtt", new ValueCallback<String>() {
+                    @Override public void onReceiveValue(String value) {
+                        int ms = -1;
+                        try {
+                            ms = (int) Math.round(Double.parseDouble(
+                                    String.valueOf(value).replace("\"", "").trim()));
+                        } catch (Exception ignored) { }
+                        if (ms > 0) {
+                            rttError = "";
+                            paintLatency(ms);
+                        } else {
+                            nativePoll();       /* 页面这条路没拿到 → 原生再试，失败原因由它填 */
+                        }
+                    }
+                });
+            }
+        }, 600L);
+    }
+
+    private void nativePoll() {
+        final String target = pingUrl();
+        new Thread(new Runnable() {
+            @Override public void run() {
+                final int ms = measureRtt(target);
+                ballHandler.post(new Runnable() { @Override public void run() { paintLatency(ms); } });
+            }
+        }).start();
+    }
 
     private void moveBall(float x, float y) {
         View parent = (View) ball.getParent();
