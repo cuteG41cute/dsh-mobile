@@ -407,10 +407,7 @@ public class MainActivity extends Activity {
             /* 自签证书的站：原生请求默认走系统信任链，会直接被拒 → 球一直显示 --。
                这里用已记住的指纹建一个只认它的 SSLContext，跟 WebView 侧的信任保持一致。 */
             if (conn instanceof HttpsURLConnection) {
-                String[] pins = trustedPins(Uri.parse(target).getHost());
-                if (pins.length > 0) {
-                    ((HttpsURLConnection) conn).setSSLSocketFactory(NetTools.pinnedContext(pins).getSocketFactory());
-                }
+                NetTools.applyPin(conn, trustedPins(Uri.parse(target).getHost()));
             }
             /* 这是原生请求，不共享 WebView 的 cookie jar：不带上就会在走隧道时
                过不了桥的接入口令闸门（每 5 秒被拦一次、日志刷屏），带上就跟页面同等待遇。

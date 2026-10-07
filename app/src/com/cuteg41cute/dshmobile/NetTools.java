@@ -71,6 +71,24 @@ public final class NetTools {
         return ctx;
     }
 
+    /**
+     * 把「只认指纹」这套信任装到一条 HttpURLConnection 上。
+     *
+     * 关键一点：**记住指纹就等于用户接受了这张证书**，所以主机名不再单独否决——
+     * HttpsURLConnection 的主机名校验独立于我们的 TrustManager，实测证书名对不上时
+     * 哪怕指纹正确也会被拒（No subject alternative names matching ... found），
+     * 那样"自动回退"会在自签环境里误判成"主用不通"。放行主机名不降低安全性：
+     * 攻击者仍必须持有那一张指纹完全相同的证书。
+     */
+    public static void applyPin(HttpURLConnection conn, String[] pins) throws Exception {
+        if (!(conn instanceof HttpsURLConnection) || pins == null || pins.length == 0) return;
+        HttpsURLConnection https = (HttpsURLConnection) conn;
+        https.setSSLSocketFactory(pinnedContext(pins).getSocketFactory());
+        https.setHostnameVerifier(new javax.net.ssl.HostnameVerifier() {
+            @Override public boolean verify(String hostname, javax.net.ssl.SSLSession session) { return true; }
+        });
+    }
+
     /** 捕获链上第一张证书、但不做校验——**仅用于诊断**（不发送任何私密数据）。 */
     private static SSLContext captureContext() throws Exception {
         TrustManager tm = new X509TrustManager() {
@@ -95,14 +113,67 @@ public final class NetTools {
             conn.setReadTimeout(timeoutMs);
             conn.setUseCaches(false);
             conn.setInstanceFollowRedirects(false);
-            if (conn instanceof HttpsURLConnection && pins != null && pins.length > 0) {
-                ((HttpsURLConnection) conn).setSSLSocketFactory(pinnedContext(pins).getSocketFactory());
-            }
+            applyPin(conn, pins);
             return conn.getResponseCode() > 0;
         } catch (Exception e) {
             return false;
         } finally {
             if (conn != null) conn.disconnect();
+        }
+    }
+
+    /** 证书里的名字（CN + SAN），只用于显示。 */
+    private static String certNames(X509Certificate cert) {
+        StringBuilder sb = new StringBuilder();
+        try {
+            java.util.Collection<java.util.List<?>> sans = cert.getSubjectAlternativeNames();
+            if (sans != null) {
+                for (java.util.List<?> entry : sans) {
+                    if (entry == null || entry.size() < 2) continue;
+                    Object value = entry.get(1);
+                    if (value == null) continue;
+                    if (sb.length() > 0) sb.append(", ");
+                    sb.append(String.valueOf(value));
+                }
+            }
+        } catch (Exception ignored) { }
+        if (sb.length() == 0) {
+            try { sb.append(commonName(cert.getSubjectX500Principal().getName())); } catch (Exception ignored) { }
+        }
+        return sb.length() == 0 ? "（未知名字）" : sb.toString();
+    }
+
+    private static String commonName(String dn) {
+        for (String part : dn.split(",")) {
+            String t = part.trim();
+            if (t.regionMatches(true, 0, "CN=", 0, 3)) return t.substring(3);
+        }
+        return dn;
+    }
+
+    /** 证书名字跟用户敲的地址对得上吗（支持通配符与 IP）。 */
+    private static boolean certMatchesHost(X509Certificate cert, String host) {
+        if (host == null || host.isEmpty()) return true;
+        String target = host.toLowerCase();
+        try {
+            java.util.Collection<java.util.List<?>> sans = cert.getSubjectAlternativeNames();
+            if (sans != null) {
+                for (java.util.List<?> entry : sans) {
+                    if (entry == null || entry.size() < 2) continue;
+                    Integer type = (Integer) entry.get(0);
+                    Object value = entry.get(1);
+                    if (value == null) continue;
+                    String name = String.valueOf(value).toLowerCase();
+                    boolean ipEntry = type != null && type.intValue() == 7;
+                    boolean hostIsIp = target.matches("[0-9.]+");
+                    if (ipEntry != hostIsIp) continue;          // IP 与域名不混着比
+                    if (name.equals(target)) return true;
+                    if (name.startsWith("*.") && target.endsWith(name.substring(1))) return true;
+                }
+            }
+            return commonName(cert.getSubjectX500Principal().getName()).toLowerCase().equals(target);
+        } catch (Exception e) {
+            return true;      // 判断不了就别吓唬用户
         }
     }
 
@@ -176,6 +247,11 @@ public final class NetTools {
                 out.append("   有效期  至 ").append(cert.getNotAfter()).append("\n");
                 out.append("   指纹    ").append(fp).append("\n");
                 out.append("   本机信任: ").append(trusted(fp, pins) ? "已记住（TOFU）" : "未记住（首次连接会弹确认）").append("\n");
+                if (!certMatchesHost(cert, host)) {
+                    out.append("   ⚠ 证书名不匹配：这张证书是给 ").append(certNames(cert))
+                       .append(" 签的，你现在访问的是 ").append(host).append("\n")
+                       .append("     应用内会按指纹放行，但浏览器和其它 App 会报证书错误；签发时请把地址本身写进去。\n");
+                }
             } catch (Exception e) {
                 out.append("③ TLS      ✗ ").append(ms(t0)).append("  ").append(e.getMessage()).append("\n");
             }
@@ -192,6 +268,11 @@ public final class NetTools {
             if (conn instanceof HttpsURLConnection) {
                 SSLContext ctx = (pins != null && pins.length > 0) ? pinnedContext(pins) : captureContext();
                 ((HttpsURLConnection) conn).setSSLSocketFactory(ctx.getSocketFactory());
+                if (pins != null && pins.length > 0) {
+                    ((HttpsURLConnection) conn).setHostnameVerifier(new javax.net.ssl.HostnameVerifier() {
+                        @Override public boolean verify(String h, javax.net.ssl.SSLSession s) { return true; }
+                    });
+                }
             }
             int code = conn.getResponseCode();
             out.append("④ HTTP     ✓ ").append(ms(t0)).append("  /__ping → ").append(code);

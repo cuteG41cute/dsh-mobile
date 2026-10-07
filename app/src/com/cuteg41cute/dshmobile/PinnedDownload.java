@@ -15,8 +15,6 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
-import javax.net.ssl.HttpsURLConnection;
-
 /**
  * 自签证书服务器的下载（系统 DownloadManager 用不了我们的 pin，只能自己下）。
  *
@@ -46,10 +44,7 @@ public final class PinnedDownload {
                 File file = null;
                 try {
                     conn = (HttpURLConnection) new URL(url).openConnection();
-                    if (conn instanceof HttpsURLConnection) {
-                        ((HttpsURLConnection) conn).setSSLSocketFactory(
-                                NetTools.pinnedContext(pins).getSocketFactory());
-                    }
+                    NetTools.applyPin(conn, pins);
                     conn.setConnectTimeout(15000);
                     conn.setReadTimeout(30000);
                     conn.setUseCaches(false);
