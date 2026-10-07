@@ -230,9 +230,9 @@
     while (item && item.parentElement && item.parentElement !== util) item = item.parentElement;
     return item && item.parentElement === util ? item : chip.parentElement;
   }
-  function ownsPanel(chip, util) {
+  function chipPanel(chip, util) {
     var scope = chipScope(chip, util);
-    if (!scope) return false;
+    if (!scope) return null;
     var nodes = scope.querySelectorAll("div, section, aside, form");
     for (var i = 0; i < nodes.length; i++) {
       var el = nodes[i];
@@ -241,9 +241,62 @@
       if (cs.display === "none" || cs.visibility === "hidden") continue;
       if (cs.position !== "fixed" && cs.position !== "absolute") continue;
       var r = el.getBoundingClientRect();
-      if (r.width >= 120 && r.height >= 60) return true;       /* 像块面板 */
+      if (r.width >= 120 && r.height >= 60) return el;         /* 像块面板 */
     }
-    return false;
+    return null;
+  }
+  function ownsPanel(chip, util) { return !!chipPanel(chip, util); }
+
+  /**
+   * 把插件面板收进手机视口。
+   * 面板都是按桌面宽度设计的（实测「备份」那块 406px 宽，而屏幕才 400px），
+   * 锚点又在顶栏右侧，于是整块从屏幕左边溢出去、文字被裁——看着就像"位置跑偏"。
+   * 这里不动插件自己的定位，只用两招兜住：宽度超出就限宽，越界就整体平移回来。
+   * 只在确实越界时写样式，避免每秒 tick 抖动。
+   */
+  function clampChipPanels() {
+    var util = utilities();
+    if (!util) return;
+    var chips = util.querySelectorAll("[data-dshm-chip]");
+    var vw = window.innerWidth;
+    for (var i = 0; i < chips.length; i++) {
+      var panel = chipPanel(chips[i], util);
+      if (!panel) continue;
+      var need = vw - 12;
+      var r = panel.getBoundingClientRect();
+      /* max-width 默认只管内容盒，而这块面板是 width:380px + 26px 内边距 —— 直接限宽反而更宽。
+         所以先切成 border-box，再按整块宽度限制。 */
+      if (r.width > need) {
+        if (panel.style.boxSizing !== "border-box") panel.style.boxSizing = "border-box";
+        if (panel.style.maxWidth !== need + "px") panel.style.maxWidth = need + "px";
+      }
+      /* 幂等：本函数被 MutationObserver 盯着，绝不能每次 tick 都写样式（会自激）。
+         上一次的位移记在 data 属性里，反推「自然位置」再判断要不要改；值没变就一个字节都不写。 */
+      var applied = panel.getAttribute("data-dshm-shift");
+      var parts = (applied || "").split(",");
+      var prev = applied === null ? 0 : (Number(parts[0]) || 0);
+      var prevY = applied === null ? 0 : (Number(parts[1]) || 0);
+      var left = r.left - prev;
+      var right = r.right - prev;
+      var dx = 0;
+      if (left < 6) dx = Math.round(6 - left);
+      else if (right > vw - 6) dx = Math.round((vw - 6) - right);
+      /* 纵向同理：顶部被顶栏压住、或底部溢出屏幕时，整体挪回来 */
+      var vh = window.innerHeight;
+      var top = r.top - prevY;
+      var bottom = r.bottom - prevY;
+      var dy = 0;
+      if (top < 6) dy = Math.round(6 - top);
+      else if (bottom > vh - 6) dy = Math.round((vh - 6) - bottom);
+      if (dx === prev && dy === prevY) continue;               /* 幂等：值没变不写 */
+      if (dx === 0 && dy === 0) {
+        panel.style.transform = "";
+        panel.removeAttribute("data-dshm-shift");
+      } else {
+        panel.style.transform = "translate(" + dx + "px," + dy + "px)";
+        panel.setAttribute("data-dshm-shift", dx + "," + dy);
+      }
+    }
   }
   document.addEventListener("click", function (event) {
     var target = event.target;
@@ -356,6 +409,7 @@
     ensureMenu();
     enableCrumbs();
     tagChips();
+    clampChipPanels();
     ensurePill();
   }
   try {
