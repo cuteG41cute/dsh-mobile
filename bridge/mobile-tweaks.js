@@ -126,6 +126,20 @@
    * 找不到工具区时（别的 DSH 版本）退回老的文字白名单，行为与以前一致。
    * ------------------------------------------------------------------ */
   function utilities() { return document.querySelector('div[class*="_headerUtilities"]'); }
+  /**
+   * 插件面板（点开芯片后浮出来的那块）就渲染在工具区**内部**，
+   * 所以「工具区里的控件」既包含芯片、也包含面板自己的按钮（重新检测 / 关闭）。
+   * 判据：祖先里只要有一个 position:fixed 的容器，就说明它在浮层面板里 —— 那不是芯片。
+   * （芯片自己被我们改成 fixed 是在本函数之后，且只看祖先，不会误伤。）
+   */
+  function inFloatingPanel(node, util) {
+    var p = node.parentElement;
+    while (p && p !== util) {
+      if (window.getComputedStyle(p).position === "fixed") return true;
+      p = p.parentElement;
+    }
+    return false;
+  }
   function tagChips() {
     var util = utilities();
     var keep = [];
@@ -140,6 +154,8 @@
            把它们吞进「插件」面板既名不副实、又会让用户找不到产品功能。 */
         var label = (node.innerText || node.textContent || "").trim();
         if (!label) continue;
+        if (inFloatingPanel(node, util)) continue;   /* 浮层面板里的按钮（重新检测/关闭…）保持原生 */
+
         node.setAttribute("data-dshm-chip", "1");
         keep.push(node);
       }
@@ -229,7 +245,11 @@
       if (window.innerWidth <= MOBILE_MAX_WIDTH) suppressComposerFocus(1200);   /* 只有手机端才需要防键盘弹出 */
       return;
     }
-    if (isPanelOpen() && !t.closest("#dshm-plugin-toggle") && !t.closest("[data-dshm-chip]")) setPanel(false);
+    /* 芯片列表只是「挑选插件」用的：点中某一枚就把它收起来。
+       插件自己的面板（比如网络监视器固定在右上、z-index 60）需要那块地方显示
+       「重新检测 / 关闭」，列表赖着不走就会压住它们 —— 用户点开插件后反而关不掉。 */
+    if (isPanelOpen() && t.closest && t.closest("[data-dshm-chip]")) { setPanel(false); return; }
+    if (isPanelOpen() && !t.closest("#dshm-plugin-toggle")) setPanel(false);
   }, true);
 
   /* ---------- 被压缩项的悬浮信息面板 ---------- */
