@@ -6,6 +6,7 @@ import android.app.DownloadManager;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
@@ -68,7 +69,8 @@ public class MainActivity extends Activity {
     private ProgressBar progressBar;
     private View errorPanel;
     private TextView errorText;
-    private TextView ball;
+    private BallView ball;
+    private long activeDownloadId = -1L;
     private final Handler ballHandler = new Handler(Looper.getMainLooper());
     private boolean ballPolling = false;
     private SharedPreferences prefs;
@@ -316,13 +318,12 @@ public class MainActivity extends Activity {
     private void paintLatency(int ms) {
         if (ball == null) return;
         if (ms < 0) {
-            ball.setText("--");
-            ball.setTextColor(Color.parseColor("#9CA3AF"));
+            ball.setLatency("--", Color.parseColor("#9CA3AF"));
             ball.setContentDescription(getString(R.string.ball_desc) + "：暂时测不到延迟");
             return;
         }
-        ball.setText(ms >= 1000 ? String.format(java.util.Locale.US, "%.1fs", ms / 1000f) : String.valueOf(ms));
-        ball.setTextColor(Color.parseColor(ms < 150 ? "#34D399" : (ms < 400 ? "#FBBF24" : "#F87171")));
+        ball.setLatency(ms >= 1000 ? String.format(java.util.Locale.US, "%.1fs", ms / 1000f) : String.valueOf(ms),
+                Color.parseColor(ms < 150 ? "#34D399" : (ms < 400 ? "#FBBF24" : "#F87171")));
         ball.setContentDescription(getString(R.string.ball_desc) + "：往返延迟 " + ms + " 毫秒");
     }
 
@@ -445,12 +446,57 @@ public class MainActivity extends Activity {
             request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
             DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
             if (dm != null) {
-                dm.enqueue(request);
+                long id = dm.enqueue(request);
+                watchDownload(id);          /* 浮球边缘的细环显示这个下载的进度 */
                 Toast.makeText(this, "开始下载：" + fileName, Toast.LENGTH_SHORT).show();
             }
         } catch (Exception e) {
             Toast.makeText(this, "下载失败：" + e.getMessage(), Toast.LENGTH_LONG).show();
         }
+    }
+
+    /* ---------------------- 浮球上的下载进度环 ----------------------
+     * DownloadManager 没有回调，只能按 id 轮询；下载中每 400ms 刷新一次环，
+     * 结束（成功/失败）就把环收掉，并把球的透明度拉回 1（免得淡到看不见进度）。
+     * -------------------------------------------------------------- */
+    private void watchDownload(final long id) {
+        activeDownloadId = id;
+        final DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+        if (dm == null || ball == null) return;
+        ball.setRing(0f);
+        ballHandler.postDelayed(new Runnable() {
+            @Override public void run() {
+                if (activeDownloadId != id) return;      /* 已被新的下载接管 */
+                long done = -1L, total = -1L;
+                int status = DownloadManager.STATUS_FAILED;
+                Cursor cursor = null;
+                try {
+                    cursor = dm.query(new DownloadManager.Query().setFilterById(id));
+                    if (cursor != null && cursor.moveToFirst()) {
+                        done = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                        total = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                        status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+                    }
+                } catch (Exception ignored) {
+                    /* 查询失败就当这次进度看不见，别影响球本身 */
+                } finally {
+                    if (cursor != null) cursor.close();
+                }
+                boolean running = status == DownloadManager.STATUS_RUNNING || status == DownloadManager.STATUS_PENDING || status == DownloadManager.STATUS_PAUSED;
+                if (running) {
+                    float progress = (total > 0 && done >= 0) ? Math.min(1f, (float) done / (float) total) : 0.02f;
+                    ball.setRing(progress);
+                    ball.setAlpha(1f);
+                    ballHandler.postDelayed(this, 400L);
+                    return;
+                }
+                if (status == DownloadManager.STATUS_SUCCESSFUL) ball.setRing(1f);
+                ballHandler.postDelayed(new Runnable() {
+                    @Override public void run() { ball.setRing(-1f); scheduleBallFade(); }
+                }, 900L);
+                activeDownloadId = -1L;
+            }
+        }, 400L);
     }
 
     /* ------------------------------- 附件上传 ------------------------------- */

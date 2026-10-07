@@ -56,19 +56,12 @@
     </LinearLayout>
 
     <!-- 可拖动、会自动变淡的悬浮球：球里是本机服务的实时往返延迟；点一下进设置，长按刷新页面 -->
-    <TextView
+    <com.cuteg41cute.dshmobile.BallView
         android:id="@+id/ball"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
+        android:layout_width="46dp"
+        android:layout_height="46dp"
         android:layout_gravity="top|end"
         android:layout_marginTop="74dp"
         android:layout_marginEnd="8dp"
-        android:background="@drawable/ball_bg"
-        android:contentDescription="@string/ball_desc"
-        android:gravity="center"
-        android:includeFontPadding="false"
-        android:fontFamily="sans-serif-medium"
-        android:text="--"
-        android:textColor="#E5E7EB"
-        android:textSize="11sp" />
+        android:contentDescription="@string/ball_desc" />
 </FrameLayout>

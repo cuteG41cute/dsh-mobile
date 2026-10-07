@@ -229,34 +229,23 @@ li[data-files-entry="file"] > button[class*="_row"] { padding-right: 40px !impor
 }
 .dshm-dl:active { background: rgba(127, 127, 127, 0.24); }
 
-/* ---------- 预览缩放：默认「适宽」，另有 50/75/100/150/200/300% 档 ----------
+/* ---------- 预览：默认「适宽」；缩放靠双指捏合，页面里不放任何常驻控件 ----------
    产品的图片 frame 是 width:max-content（按原始尺寸撑开），只压 img 的 max-width 等于没压，
-   必须连 frame 一起夹住才能「一屏看全」；缩放档反过来放开 frame，按原图尺寸的百分比缩放。 */
+   必须连 frame 一起夹住才能「一屏看全」。捏合放大时由脚本写内联 width 并摘掉这个类。 */
 body.dshm-pv-fit [data-image-preview] { width: auto !important; max-width: 100% !important; }
 body.dshm-pv-fit [data-image-preview] img { max-width: 100% !important; height: auto !important; }
 body.dshm-pv-fit [data-pdf-page], body.dshm-pv-fit [data-pdf-page] canvas { max-width: 100% !important; height: auto !important; }
-body[class*="dshm-pv-z"] [data-image-preview] { width: max-content !important; max-width: none !important; }
-body[class*="dshm-pv-z"] [data-image-preview] img,
-body[class*="dshm-pv-z"] [data-pdf-page] canvas { max-width: none !important; height: auto !important; }
-body.dshm-pv-z50 [data-image-preview] img, body.dshm-pv-z50 [data-pdf-page] canvas { width: 50% !important; }
-body.dshm-pv-z75 [data-image-preview] img, body.dshm-pv-z75 [data-pdf-page] canvas { width: 75% !important; }
-body.dshm-pv-z100 [data-image-preview] img, body.dshm-pv-z100 [data-pdf-page] canvas { width: 100% !important; }
-body.dshm-pv-z150 [data-image-preview] img, body.dshm-pv-z150 [data-pdf-page] canvas { width: 150% !important; }
-body.dshm-pv-z200 [data-image-preview] img, body.dshm-pv-z200 [data-pdf-page] canvas { width: 200% !important; }
-body.dshm-pv-z300 [data-image-preview] img, body.dshm-pv-z300 [data-pdf-page] canvas { width: 300% !important; }
 
-.dshm-pv-bar {
-  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
-  z-index: 70; display: flex; align-items: center; gap: 3px; padding: 5px 7px;
-  border-radius: 999px; background: rgba(17, 24, 30, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.14); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
-  color: #e6edf3; font: 12px/1 system-ui, sans-serif;
+/* ---------- 预览长按菜单（下载 / 适宽 / 1:1） ---------- */
+#dshm-pv-menu {
+  position: fixed; z-index: 80; display: flex; flex-direction: column; min-width: 176px;
+  padding: 6px; border-radius: 14px; background: rgba(17, 24, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.14); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  color: #e6edf3; font: 14px/1.2 system-ui, sans-serif;
 }
-.dshm-pv-bar[hidden] { display: none; }
-.dshm-pv-bar button {
-  min-width: 42px; height: 32px; padding: 0 10px; border: 0; border-radius: 999px;
+#dshm-pv-menu button {
+  text-align: left; padding: 11px 12px; border: 0; border-radius: 10px;
   background: transparent; color: inherit; font: inherit; -webkit-tap-highlight-color: transparent;
 }
-.dshm-pv-bar button[data-on="1"] { background: rgba(20, 184, 166, 0.34); }
-.dshm-pv-bar button:disabled { opacity: 0.35; }
-.dshm-pv-bar .dshm-pv-val { min-width: 46px; text-align: center; opacity: 0.75; font-variant-numeric: tabular-nums; }
+#dshm-pv-menu button:active { background: rgba(127, 127, 127, 0.25); }
+#dshm-pv-menu button:disabled { opacity: 0.4; }

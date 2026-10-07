@@ -237,8 +237,13 @@ DSH 的「文件」面板没有下载入口（点开只走应用内预览，而�
 - **下载**：注入脚本给每个 `li[data-files-entry="file"]` 补一个 `⤓`（预览控制条上也有一个），指向 `GET /__file?path=<绝对路径>`；桥以 `Content-Disposition: attachment` 回文件，Android WebView 的 `DownloadListener` 转交系统下载器（`CookieManager.getCookie` 已把 WebView 的 cookie 带上，所以外网经隧道也过得了口令闸门），落到手机「下载」目录。
   - 文件名同时给 ASCII 兜底和 RFC 5987 的 UTF-8 名（`filename*=UTF-8''…`），中文名不会乱码或被截断；
   - **安全边界**：`/__file` 能读走本机任意可读文件——它和桥的其它接口一样在**设备认证 + 接入口令**之后，而桥口本身已经等价于本机 shell 权限（见「安全模型」），所以不额外扩大攻击面；但仍不要把这个端口暴露到公网。
-- **缩放**：控制条切 `body` 上的 `dshm-pv-fit` / `dshm-pv-z{50…300}`，CSS 夹住产品的 `width:max-content` frame（只压 img 的 `max-width` 等于没压），默认「适宽」一屏看全，1:1 与百分比档按原图尺寸缩放、由滚动容器平移。
+- **缩放（手势版）**：页面里**不放任何常驻控件**（第一版做了底部控制条，实测会挡住输入框、且 50% 下限不够用，已废弃）。默认给 `body.dshm-pv-fit`：CSS 必须**连 `width:max-content` 的 frame 一起夹住**（只压 img 的 `max-width` 等于没压），一屏看全；缩放靠**双指捏合**——脚本直接把 `width` 写成 `自然尺寸 × 倍数` 并摘掉 fit 类，范围 10%–2000%，由滚动容器平移。
+- **长按菜单**（下载 / 适宽 / 1:1）：路径优先取预览头部 `title` 上的展示路径（实测是完整绝对路径），其次退到文件树里最近点开的文件，最后才试 `data-document-preview`（当前版本那里是合成 tab id，**不是**资源地址，直接拿去下载会 404 —— 已加绝对路径校验）。
+- **两个必须记住的坑**：① 长按抬手时浏览器会补一次 `click`，不留神就把刚弹出的菜单关掉（现在用「刚打开 600ms 内忽略 click」+「点在菜单内部不关」）；② `data-document-preview` 的值看着像地址其实不是路径，别想当然。
 - **一句教训**：注入脚本里**不要用 MutationObserver 驱动会写 DOM 的 tick**——自己写、自己触发，实测直接把页面卡死（打开图片预览即复现）。改成定时器 + 「值没变就不写」幂等写入后正常。
+#### 悬浮球的下载进度环（原生，App ≥ 1.3.4）
+
+球的下载进度只能原生做：`DownloadManager` 没有回调，`startDownload` 拿到 id 后每 400ms `query` 一次（`COLUMN_BYTES_DOWNLOADED_SO_FAR` / `COLUMN_TOTAL_SIZE_BYTES` / `COLUMN_STATUS`），把 0–1 交给自绘的 `BallView.setRing()`；结束（成功/失败）后 0.9s 收环。原来球是 `TextView` + shape 背景，加环只能改成自绘 View（球体 / 细环 / 延迟读数一体），触摸逻辑（点开设置、长按刷新、拖动吸附）仍在 `MainActivity` 里，不受影响。
 
 ### 9.3 APK 分发
 

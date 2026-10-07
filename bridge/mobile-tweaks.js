@@ -347,35 +347,120 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })();
-/* -------------------- 文件下载 + 预览缩放 --------------------
- * 1) DSH 文件面板没有下载入口 → 给每个文件行补一个 ⤓，交给桥的 /__file；
- *    Android 的 DownloadListener 会把带 Content-Disposition 的响应转交系统下载器
- *    （并带上 WebView 的 cookie，所以外网经隧道也能下）。
- * 2) 图片 / PDF 预览按原始尺寸渲染（产品的既定行为），手机上一屏只看得见一角 →
- *    默认给「适宽」，并浮出一条控制条：下载 / 适宽 / 1:1 / － / ＋。
- * ------------------------------------------------------------ */
+/* -------------------- 文件下载 + 预览手势缩放 --------------------
+ * 1) 文件行的 ⤓：交给桥的 /__file（Android 的 DownloadListener 转交系统下载器）。
+ * 2) 预览：产品按**原始尺寸**渲染、且没有缩放入口。这里不加任何常驻控件
+ *    （常驻控件会挡住输入框）——改成**双指捏合缩放**（10%–2000%）+ **长按菜单**
+ *    （下载到手机 / 适应宽度 / 1:1）。下载目标路径直接从
+ *    [data-document-preview] 上的 dsh-resource://file/session/<sid>/<path> 解析，
+ *    所以从会话里点开的预览也能下载，不依赖文件树。
+ * ---------------------------------------------------------------- */
 (function () {
-  var ZOOMS = [50, 75, 100, 150, 200, 300];
-  var zoomIndex = 2;              /* 1:1 */
-  var mode = "fit";               /* fit | zoom */
+  var MIN = 0.1, MAX = 20;
+  var scale = null;              /* null = 适宽；否则为倍数 */
   var lastFile = { path: "", name: "" };
-  var barEl = null;
+  var menuEl = null, pressTimer = 0, pinch = null, pressStart = null;
 
   function list(sel, root) { return [].slice.call((root || document).querySelectorAll(sel)); }
-
-  function clearZoom() {
-    var keep = [].slice.call(document.body.classList).filter(function (c) { return c.indexOf("dshm-pv-") === 0; });
-    for (var i = 0; i < keep.length; i++) document.body.classList.remove(keep[i]);
+  function previewRoot() { return document.querySelector("[data-document-preview]"); }
+  function media() {
+    var root = previewRoot();
+    if (!root) return [];
+    return list("[data-image-preview] img", root).concat(list("[data-pdf-page] canvas", root));
   }
-  function applyZoom() {
-    clearZoom();
-    document.body.classList.add(mode === "fit" ? "dshm-pv-fit" : "dshm-pv-z" + ZOOMS[zoomIndex]);
-    syncBar();
+  function mediaVisible() {
+    var nodes = media();
+    for (var i = 0; i < nodes.length; i++) {
+      var r = nodes[i].getBoundingClientRect();
+      if (r.width > 40 && r.height > 40 && nodes[i].offsetParent !== null) return true;
+    }
+    return false;
   }
-  function label() { return mode === "fit" ? "适宽" : ZOOMS[zoomIndex] + "%"; }
+  function naturalWidth(el) {
+    if (el.tagName === "IMG") return el.naturalWidth || el.width || 0;
+    return el.width || 0;
+  }
+  function currentScale() {
+    if (scale !== null) return scale;
+    var nodes = media();
+    if (!nodes.length) return 1;
+    var nw = naturalWidth(nodes[0]);
+    var shown = nodes[0].getBoundingClientRect().width;
+    return nw > 0 && shown > 0 ? shown / nw : 1;
+  }
+  function setFit() {
+    scale = null;
+    var nodes = media();
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].style.width = "";
+      nodes[i].style.height = "";
+      nodes[i].style.maxWidth = "";
+    }
+    if (document.body.className.indexOf("dshm-pv-fit") < 0) document.body.classList.add("dshm-pv-fit");
+  }
+  function setScale(next) {
+    scale = Math.min(MAX, Math.max(MIN, next));
+    document.body.classList.remove("dshm-pv-fit");
+    var nodes = media();
+    for (var i = 0; i < nodes.length; i++) {
+      var nw = naturalWidth(nodes[i]);
+      if (!nw) continue;
+      nodes[i].style.maxWidth = "none";
+      nodes[i].style.height = "auto";
+      nodes[i].style.width = Math.round(nw * scale) + "px";
+    }
+  }
+  function inPreview(target) { return !!(target && target.closest && target.closest("[data-document-preview]")); }
 
+  /* ---------- 下载 ---------- */
+  /** 只认「看起来真的是绝对路径」的结果：当前版本的 data-document-preview 是合成 tab id
+   *  （形如 @deepseek-ai/.../image），早期版本直接拿去下载会 404 —— 所以必须校验。 */
+  function looksLikePath(value) {
+    if (!value || typeof value !== "string") return false;
+    if (value.indexOf("@") >= 0 || value.indexOf("dsh-resource") >= 0) return false;
+    return /^[A-Za-z]:[\\/]/.test(value) || value.charAt(0) === "/" || /^\\\\/.test(value);
+  }
+  function decodeAddress(address) {
+    if (!address) return "";
+    var rest = String(address).replace(/^dsh-resource:\/\/file\//, "");
+    var parts = rest.split("/");
+    if (parts[0] === "session") parts.splice(0, 2);       /* 去掉 session/<sid> */
+    var decoded = [];
+    for (var i = 0; i < parts.length; i++) {
+      try { decoded.push(decodeURIComponent(parts[i])); } catch (error) { decoded.push(parts[i]); }
+    }
+    var joined = decoded.join("/");
+    return looksLikePath(joined) ? joined : "";
+  }
+  /* 路径来源（按可靠性排序）：
+     ① 产品把展示路径挂在 title 上（预览头部/标签），形如 C:\... 或 /home/...；
+     ② 文件树里最近点开的那个文件；
+     ③ data-document-preview 上万一给的是真实资源地址，也能解。（实测当前版本是合成 tab id，解不出来。） */
+  function pathFromTitle() {
+    var nodes = document.querySelectorAll("#dshm-pv-menu, [title]");
+    var best = "";
+    for (var i = 0; i < nodes.length; i++) {
+      var t = nodes[i].getAttribute("title") || "";
+      if (t.length < 4 || t.length > 400) continue;
+      if (!/[\\/]/.test(t)) continue;
+      var el = nodes[i];
+      var r = el.getBoundingClientRect();
+      if (r.width < 1 && r.height < 1) continue;
+      if (t.length > best.length) best = t;
+    }
+    return best;
+  }
+  function currentPath() {
+    var fromTitle = pathFromTitle();                 /* ① 预览头部 title 上的展示路径（最可靠） */
+    if (fromTitle) return fromTitle;
+    if (lastFile.path) return lastFile.path;         /* ② 文件树里最近点开的文件 */
+    var root = previewRoot();                        /* ③ 兜底：真实资源地址（当前版本解不出来） */
+    var fromAddress = root ? decodeAddress(root.getAttribute("data-document-preview")) : "";
+    return fromAddress || "";
+  }
+  function baseName(p) { var at = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")); return at < 0 ? p : p.slice(at + 1); }
   function download(path, name) {
-    if (!path) return;
+    if (!path) return false;
     var a = document.createElement("a");
     a.href = "/__file?path=" + encodeURIComponent(path);
     a.rel = "noopener";
@@ -383,13 +468,11 @@
     document.body.appendChild(a);
     a.click();
     window.setTimeout(function () { if (a.parentNode) a.parentNode.removeChild(a); }, 0);
+    return true;
   }
 
-  /* ---------- 文件行：补 ⤓ ---------- */
-  function nameOf(li) {
-    var n = li.querySelector('[class*="_name"]');
-    return n ? String(n.textContent || "").trim() : "";
-  }
+  /* ---------- 文件行的 ⤓ ---------- */
+  function nameOf(li) { var n = li.querySelector('[class*="_name"]'); return n ? String(n.textContent || "").trim() : ""; }
   function addRowButton(li) {
     if (li.getAttribute("data-dshm-dl") === "1") return;
     li.setAttribute("data-dshm-dl", "1");
@@ -397,7 +480,7 @@
     btn.type = "button";
     btn.className = "dshm-dl";
     btn.setAttribute("aria-label", "下载到手机");
-    btn.textContent = "\u2913";   /* ⤓ */
+    btn.textContent = "\u2913";
     btn.addEventListener("click", function (event) {
       event.preventDefault();
       event.stopPropagation();
@@ -409,89 +492,91 @@
     var rows = list('li[data-files-entry="file"][data-files-path]');
     for (var i = 0; i < rows.length; i++) addRowButton(rows[i]);
   }
-  /* 记住最近点开的文件，预览条上的「下载」用它 */
+  var menuOpenedAt = 0;
   document.addEventListener("click", function (event) {
     var t = event.target;
     if (!t || !t.closest) return;
+    /* 长按抬手会补一次 click：别拿它把刚弹出的菜单关掉 */
+    if (Date.now() - menuOpenedAt < 600) return;
+    if (t.closest("#dshm-pv-menu")) return;      /* 点在菜单内部更不该关 */
     var li = t.closest('li[data-files-entry="file"][data-files-path]');
-    if (!li) return;
-    lastFile = { path: li.getAttribute("data-files-path") || "", name: nameOf(li) };
-    syncBar();
+    if (li) { lastFile = { path: li.getAttribute("data-files-path") || "", name: nameOf(li) }; return; }
+    hideMenu();
   }, true);
 
-  /* ---------- 悬浮控制条 ---------- */
-  /* 预览必须**真的可见**才算数：后台标签页里也留着 DOM，否则控制条会浮在会话页上。 */
-  function hasMedia() {
-    var nodes = document.querySelectorAll("[data-image-preview], [data-pdf-preview]");
-    for (var i = 0; i < nodes.length; i++) {
-      var rect = nodes[i].getBoundingClientRect();
-      if (rect.width > 40 && rect.height > 40 && nodes[i].offsetParent !== null) return true;
+  /* ---------- 长按菜单 ---------- */
+  function hideMenu() { if (menuEl && menuEl.parentNode) { menuEl.parentNode.removeChild(menuEl); } menuEl = null; }
+  function showMenu(x, y) {
+    hideMenu();
+    var path = currentPath();
+    var box = document.createElement("div");
+    box.id = "dshm-pv-menu";
+    var mk = function (text, handler, disabled) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = text;
+      if (disabled) b.disabled = true;
+      b.addEventListener("click", function (event) { event.preventDefault(); event.stopPropagation(); hideMenu(); if (!disabled) handler(); });
+      box.appendChild(b);
+      return b;
+    };
+    mk("\u2913  下载到手机", function () { download(path, baseName(path)); }, !path);
+    mk("适应宽度", function () { setFit(); });
+    mk("1:1 原始大小", function () { setScale(1); });
+    document.body.appendChild(box);
+    var rect = box.getBoundingClientRect();
+    box.style.left = Math.max(6, Math.min(x - 20, window.innerWidth - rect.width - 6)) + "px";
+    box.style.top = Math.max(6, Math.min(y, window.innerHeight - rect.height - 6)) + "px";
+    menuEl = box;
+    menuOpenedAt = Date.now();
+  }
+
+  /* ---------- 双指捏合 ---------- */
+  function distance(touches) {
+    var dx = touches[0].clientX - touches[1].clientX;
+    var dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy) || 1;
+  }
+  document.addEventListener("touchstart", function (event) {
+    if (!inPreview(event.target)) return;
+    if (event.touches.length === 2) {
+      window.clearTimeout(pressTimer);
+      pinch = { start: distance(event.touches), scale: currentScale() };
+      event.preventDefault();
+      return;
     }
-    return false;
-  }
-  function button(id, text, title) {
-    var b = document.createElement("button");
-    b.type = "button";
-    b.id = "dshm-pv-" + id;
-    b.textContent = text;
-    if (title) b.setAttribute("aria-label", title);
-    return b;
-  }
-  function ensureBar() {
-    if (barEl && barEl.parentNode) return barEl;
-    var bar = document.createElement("div");
-    bar.id = "dshm-pv-bar";
-    bar.className = "dshm-pv-bar";
-    var dl = button("dl", "\u2913", "下载到手机");
-    var fit = button("fit", "适宽");
-    var one = button("one", "1:1");
-    var minus = button("minus", "\u2212", "缩小");
-    var val = document.createElement("span");
-    val.className = "dshm-pv-val";
-    val.id = "dshm-pv-val";
-    var plus = button("plus", "\uFF0B", "放大");
-    dl.addEventListener("click", function () { download(lastFile.path, lastFile.name); });
-    fit.addEventListener("click", function () { mode = "fit"; applyZoom(); });
-    one.addEventListener("click", function () { mode = "zoom"; zoomIndex = 2; applyZoom(); });
-    minus.addEventListener("click", function () { mode = "zoom"; zoomIndex = Math.max(0, zoomIndex - 1); applyZoom(); });
-    plus.addEventListener("click", function () { mode = "zoom"; zoomIndex = Math.min(ZOOMS.length - 1, zoomIndex + 1); applyZoom(); });
-    bar.appendChild(dl); bar.appendChild(fit); bar.appendChild(one);
-    bar.appendChild(minus); bar.appendChild(val); bar.appendChild(plus);
-    document.body.appendChild(bar);
-    barEl = bar;
-    return bar;
-  }
-  /* 每一次写入都先比对：写 DOM 会再触发观察者/重排，早期版本在这里自激成死循环，
-     打开图片预览直接把页面卡死 —— 所以「值没变就不写」是硬要求，定时器是唯一的驱动源。 */
-  function setText(el, text) { if (el && el.textContent !== text) el.textContent = text; }
-  function setAttr(el, name, value) { if (el && el.getAttribute(name) !== value) el.setAttribute(name, value); }
-  function syncBar() {
-    if (!barEl) return;
-    setText(barEl.querySelector("#dshm-pv-val"), label());
-    setAttr(barEl.querySelector("#dshm-pv-fit"), "data-on", mode === "fit" ? "1" : "0");
-    setAttr(barEl.querySelector("#dshm-pv-one"), "data-on", mode === "zoom" && ZOOMS[zoomIndex] === 100 ? "1" : "0");
-    var dl = barEl.querySelector("#dshm-pv-dl");
-    if (dl) {
-      var disabled = !lastFile.path;
-      if (dl.disabled !== disabled) dl.disabled = disabled;
-      setAttr(dl, "aria-label", lastFile.path ? ("下载 " + lastFile.name + " 到手机") : "先从「文件」里点开一个文件");
+    if (event.touches.length === 1) {
+      var t = event.touches[0];
+      pressStart = { x: t.clientX, y: t.clientY };
+      window.clearTimeout(pressTimer);
+      pressTimer = window.setTimeout(function () { showMenu(t.clientX, t.clientY); }, 520);
     }
-  }
+  }, { passive: false });
+  document.addEventListener("touchmove", function (event) {
+    if (pinch && event.touches.length === 2) {
+      setScale(pinch.scale * (distance(event.touches) / pinch.start));
+      event.preventDefault();
+      return;
+    }
+    if (pressStart && event.touches.length === 1) {
+      var t = event.touches[0];
+      if (Math.abs(t.clientX - pressStart.x) + Math.abs(t.clientY - pressStart.y) > 12) window.clearTimeout(pressTimer);
+    }
+  }, { passive: false });
+  document.addEventListener("touchend", function (event) {
+    if (event.touches.length < 2) pinch = null;
+    if (event.touches.length === 0) window.clearTimeout(pressTimer);
+  }, { passive: true });
+  document.addEventListener("contextmenu", function (event) { if (inPreview(event.target)) event.preventDefault(); }, true);
+
+  /* ---------- 循环：只做幂等写入，绝不用 MutationObserver 驱动（会自激死循环） ---------- */
   function tick() {
     markRows();
-    if (hasMedia()) {
-      var bar = ensureBar();
-      if (bar.hidden) bar.hidden = false;
-      if (document.body.className.indexOf("dshm-pv-") < 0) applyZoom();
-      syncBar();
-    } else if (barEl && !barEl.hidden) {
-      barEl.hidden = true;
-    }
+    var has = !!previewRoot() && mediaVisible();
+    if (has && scale === null && document.body.className.indexOf("dshm-pv-fit") < 0) setFit();
+    if (!has && menuEl) hideMenu();
   }
-  function boot() {
-    tick();
-    window.setInterval(tick, 700);   /* 唯一的驱动源：不挂 MutationObserver，避免自触发 */
-  }
+  function boot() { tick(); window.setInterval(tick, 700); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
   else boot();
 })();

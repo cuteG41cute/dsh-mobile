@@ -35,8 +35,9 @@
 | 按设备隔离的设置 | 外观 / 字号 / 语言按设备生效，不影响电脑 |
 | 传输优化 | 压缩透传 + 桥侧 brotli，首屏字节约为原来的 1/3 |
 | 外网接入 | 任何 frp / 内网穿透都行；自带 Let's Encrypt 证书自动续期脚本（HTTP-01，无需服务商 API 密钥） |
-| 下载到手机 | 「文件」面板每个文件行带 `⤓`（预览里的控制条上也有）：经桥的 `/__file` 以附件形式落到手机「下载」目录，PDF / 图片 / 文档都能存下来慢慢看 |
-| 预览缩放 | 图片 / PDF 预览默认**适宽**（一屏看全），控制条可切 1:1 与 50–300% —— 产品的预览是按原始尺寸渲染的，小屏上原本只能看到一角 |
+| 下载到手机 | 「文件」面板每个文件行带 `⤓`；预览里**长按**也能下载当前文件（含从会话点开的）。经桥的 `/__file` 以附件形式落到手机「下载」目录 |
+| 预览手势缩放 | 预览默认**适宽**（一屏看全），**双指捏合**缩放，范围 10%–2000%；页面里不放任何常驻控件（不会挡输入框）。长按菜单还可切「适宽 / 1:1」 |
+| 下载进度 | 悬浮球边缘一圈细环显示下载进度（原生实现，需 App ≥ 1.3.4） |
 | 抗更新退化 | 注入前清单自检 + `/__selftest` + 桌面启动器自检不过就回退官方端口 |
 
 ## 目录
@@ -68,7 +69,7 @@ powershell -ExecutionPolicy Bypass -File bridge/allow-firewall.ps1
 
 ## 安卓 App
 
-`app/dist/dsh-mobile-1.3.3.apk` 是可直接安装的构建产物（自签名，仅供自用）。自己改代码后重新构建：
+`app/dist/dsh-mobile-1.3.4.apk` 是可直接安装的构建产物（自签名，仅供自用）。自己改代码后重新构建：
 
 ```powershell
 cd app
@@ -76,6 +77,8 @@ powershell -ExecutionPolicy Bypass -File build.ps1 -VersionCode 10 -VersionName 
 ```
 
 需要本机有 Android SDK 的 build-tools（aapt2 / d8 / zipalign / apksigner）。**签名密钥请自行生成**（`keystore/` 不入库）。
+
+> 版本号以 `AndroidManifest.xml` 里的 `versionCode/versionName` 为准：实测 `build.ps1 -VersionCode/-VersionName` 只影响输出**文件名**，aapt2 的 `--version-code` 盖不住清单里的值。改版本请直接改清单，否则会出现「文件名 1.3.4、装上去还是 1.3.3」。
 
 ## 安全模型（请务必读）
 
