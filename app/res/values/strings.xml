@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DSH 手机端</string>
+    <string name="app_name">DeepSeek Harness</string>
     <string name="retry">重试</string>
     <string name="ball_desc">悬浮球：点击打开设置，长按刷新页面</string>
     <string name="error_title">连接不上服务器</string>

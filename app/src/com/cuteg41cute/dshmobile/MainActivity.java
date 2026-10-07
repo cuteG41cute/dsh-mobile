@@ -38,7 +38,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 /**
- * DSH 手机端 —— 把本机 DeepSeek Harness WebUI（经 dsh-mobile-bridge）包成一个安卓应用。
+ * DeepSeek Harness（dsh-mobile-app）—— 把本机 DeepSeek Harness WebUI（经 dsh-mobile-bridge）包成一个安卓应用。
  *
  * v1.1.0 起：右上角常驻的两个半透明按钮去掉了，改成**可拖动、会自动变淡的悬浮球**：
  *   - 点一下 → 打开原生设置页（服务器地址、屏幕常亮、快捷操作、关于）

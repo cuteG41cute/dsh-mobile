@@ -1893,7 +1893,7 @@ function splash(req, res) {
   const items = urls.map(function (u) { return "<li><code>" + u + "</code></li>"; }).join("");
   const apk = findLatestApk();
   const apkBlock = apk
-    ? "<a class=\"big\" style=\"margin-top:12px;background:#1f9d63\" href=\"/__apk\">下载安卓 App：DSH 手机端</a>"
+    ? "<a class=\"big\" style=\"margin-top:12px;background:#1f9d63\" href=\"/__apk\">下载安卓 App：DeepSeek Harness</a>"
       + "<div style=\"margin-top:8px;font-size:12px;opacity:.6\">" + apk.name + " · "
       + Math.round(apk.size / 1024) + " KB · sha256 " + apk.sha256.slice(0, 16) + "…</div>"
     : "<div style=\"margin-top:12px;font-size:13px;opacity:.6\">（还没构建安卓 App：先在电脑上运行 dsh-mobile-app\\build.ps1）</div>";

@@ -35,7 +35,7 @@ public class SettingsActivity extends Activity {
 
         String version = "";
         try { version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception ignored) { }
-        about.setText("DSH 手机端 v" + version + "\n\n"
+        about.setText("DeepSeek Harness v" + version + "\n\n"
                 + "把本机 DeepSeek Harness 的 WebUI 包装成手机应用；认证由电脑侧的 "
                 + "dsh-mobile-bridge 完成，本应用不保存任何密码或密钥。\n\n"
                 + "当前服务器：\n" + MainActivity.normalizeUrl(url) + "\n\n"
