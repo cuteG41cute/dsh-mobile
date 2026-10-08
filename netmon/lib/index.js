@@ -18,6 +18,10 @@
 // diagnostic, a dead bridge must render as "down", not break the page.
 import { Service } from '@deepseek-ai/cordis'
 import https from 'node:https'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { spawn } from 'node:child_process'
 
 export const ROUTE_PATH = '/dsh-netmon/api'
 const BRIDGE = 'http://127.0.0.1:8099'
@@ -120,10 +124,75 @@ export class NetMonService extends Service {
     const method = request && typeof request.method === 'string' ? request.method : ''
     try {
       if (method === 'status') { send(200, await this.collect()); return }
+      /* 面板里的「启动桥 / 启动前置」：宿主跑在电脑上，直接 node 起 node —— 这台机器上最
+         可靠的拉起路径（WSH 的 Run/WMI 都踩过坑，见 start-*-hidden.vbs 里的注释）。 */
+      if (method === 'start-bridge' || method === 'start-front') {
+        send(200, await this.startService(method === 'start-front' ? 'front' : 'bridge'))
+        return
+      }
       send(200, { ok: false, reason: 'unknown-method: ' + method })
     } catch (error) {
       send(200, { ok: false, reason: error instanceof Error ? error.message : String(error) })
     }
+  }
+
+  /** 桥所在目录：可用 DSH_NETMON_BRIDGE_DIR 覆盖，否则按常见位置找。 */
+  bridgeDir() {
+    const candidates = [
+      process.env.DSH_NETMON_BRIDGE_DIR,
+      path.join(os.homedir(), 'Documents', 'deeepseek harness', 'share', 'dsh-mobile-bridge'),
+      path.join(process.cwd(), 'share', 'dsh-mobile-bridge'),
+      path.join(process.cwd(), 'dsh-mobile-bridge'),
+    ].filter((x) => typeof x === 'string' && x !== '')
+    for (const dir of candidates) {
+      try { if (fs.existsSync(path.join(dir, 'bridge.cjs'))) return dir } catch { /* 换下一个 */ }
+    }
+    return ''
+  }
+
+  async bridgeAlive() {
+    const r = await getJson(BRIDGE + '/__selftest', 2000)
+    return r.status > 0
+  }
+
+  async frontAlive() {
+    const r = await probeInsecure('127.0.0.1', 8443, 2000)
+    return r.status > 0
+  }
+
+  /**
+   * 手动拉起一个服务，并等它真的应答（最多 20 秒）——**不静默**：返回里一定带
+   * ok / already / waitedMs / error，面板原样显示给用户。
+   */
+  async startService(which) {
+    const dir = this.bridgeDir()
+    if (dir === '') return { ok: false, error: '找不到桥目录（可用 DSH_NETMON_BRIDGE_DIR 指定）' }
+    const isFront = which === 'front'
+    const script = isFront ? 'tls-front.cjs' : 'bridge.cjs'
+    const file = path.join(dir, script)
+    if (!fs.existsSync(file)) return { ok: false, error: '缺少 ' + script }
+    const args = isFront ? ['--port', '8443', '--to', '8099', '--log', 'tls-front.log'] : ['--quiet']
+    if (await (isFront ? this.frontAlive() : this.bridgeAlive())) return { ok: true, already: true, script }
+    let pid = null
+    try {
+      const child = spawn(process.execPath, [file].concat(args), {
+        cwd: dir, detached: true, stdio: 'ignore', windowsHide: true,
+      })
+      pid = child.pid
+      child.unref()
+    } catch (error) {
+      return { ok: false, error: error && error.message ? error.message : String(error) }
+    }
+    const started = Date.now()
+    while (Date.now() - started < 20000) {
+      await new Promise((r) => setTimeout(r, 700))
+      if (await (isFront ? this.frontAlive() : this.bridgeAlive())) {
+        this.cache = undefined
+        return { ok: true, pid, waitedMs: Date.now() - started, script }
+      }
+    }
+    this.cache = undefined
+    return { ok: false, pid, error: '已启动但 20 秒内没有应答（看 bridge.log / tls-front.log）' }
   }
 
   async collect() {

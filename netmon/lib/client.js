@@ -87,9 +87,18 @@ window.__ModuleLoader__.load({
 
       // bridge
       blocks.push(react.createElement('div', { key: 'b', style: sectionStyle }, [
-        react.createElement('div', { key: 't', style: { fontWeight: 600 } }, [
+        react.createElement('div', { key: 't', style: { fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } }, [
           dot(b.up === true ? '#22c55e' : 'var(--dsw-alias-state-error-primary, #d92d20)', b.error || ''),
           react.createElement('span', { key: 'x', style: { marginLeft: 6 } }, '接入桥 127.0.0.1:8099'),
+          /* 桥掉线时（比如刚重启完电脑）在这里一键把它拉起来。
+             桥活着就不显示——这个动作只能"启动"，不能"重启"（再起一个只会撞端口）。 */
+          b.up === true ? null : react.createElement('button', {
+            key: 'start',
+            disabled: props.busy === 'bridge',
+            onClick: () => props.startService('bridge'),
+            title: '在这台电脑上把桥跑起来（node bridge.cjs）',
+            style: Object.assign({}, chipStyle, { padding: '2px 8px', marginLeft: 'auto' }),
+          }, props.busy === 'bridge' ? '启动中…' : '启动桥'),
         ]),
         b.up === true
           ? line('l1', '响应', b.ms + ' ms · 上游 ' + (b.upstream === null ? '—' : b.upstream) + (b.note ? ' · ' + b.note : ''))
@@ -119,6 +128,13 @@ window.__ModuleLoader__.load({
         react.createElement('div', { key: 't', style: { fontWeight: 600 } }, [
           dot(t.configured === true ? (t.up === true ? '#22c55e' : '#f59e0b') : 'var(--dsw-alias-label-tertiary, #8a8a8a)', t.error || ''),
           react.createElement('span', { key: 'x', style: { marginLeft: 6 } }, '外网隧道'),
+          t.configured === true && t.up !== true ? react.createElement('button', {
+            key: 'start',
+            disabled: props.busy === 'front',
+            onClick: () => props.startService('front'),
+            title: '在这台电脑上把 HTTPS 前置跑起来（隧道指向的 127.0.0.1:8443）',
+            style: Object.assign({}, chipStyle, { padding: '2px 8px', marginLeft: 'auto' }),
+          }, props.busy === 'front' ? '启动中…' : '启动前置') : null,
         ]),
         t.configured !== true
           ? line('e', '—', '未配置外网地址（设置 → 手机端 → 外网访问）')
@@ -148,6 +164,9 @@ window.__ModuleLoader__.load({
           (x.name || '') + (x.trusted ? '（完全信任）' : '') + (x.platform ? ' · ' + x.platform : ''))),
       ]));
 
+      if (props.note) {
+        blocks.push(react.createElement('div', { key: 'note', style: { marginTop: 8, color: 'var(--dsw-static-deepseek-500, #4d6bfe)' } }, props.note));
+      }
       blocks.push(react.createElement('div', { key: 'f', style: { marginTop: 10, color: 'var(--dsw-alias-label-tertiary, #8a8a8a)' } },
         '检测于 ' + new Date(s.at).toLocaleTimeString() + ' · 用时 ' + s.tookMs + ' ms'));
       return react.createElement('div', { style: cardStyle }, blocks);
@@ -156,9 +175,29 @@ window.__ModuleLoader__.load({
     function NetMonChip(props) {
       const [state, setState] = react.useState(null);
       const [open, setOpen] = react.useState(false);
+      const [busy, setBusy] = react.useState('');
+      const [note, setNote] = react.useState('');
       const reload = react.useCallback(() => {
         rpc('status', {}).then((r) => setState(r && typeof r === 'object' ? r : { ok: false, reason: 'bad response' }));
       }, []);
+      /* 拉起服务：宿主会等它真的应答再回话，这里把结果原样显示出来（成功/已运行/失败原因） */
+      const startService = react.useCallback((which) => {
+        const label = which === 'front' ? '隧道前置' : '接入桥';
+        setBusy(which);
+        setNote(label + ' 启动中…');
+        rpc(which === 'front' ? 'start-front' : 'start-bridge', {}).then((r) => {
+          setBusy('');
+          if (r && r.ok === true) {
+            setNote(label + (r.already === true ? ' 本来就在运行' : ' 已启动') + (r.waitedMs ? '（' + r.waitedMs + ' ms）' : ''));
+          } else {
+            setNote(label + ' 启动失败：' + ((r && (r.error || r.reason)) || 'unknown'));
+          }
+          reload();
+        }).catch((error) => {
+          setBusy('');
+          setNote(label + ' 启动失败：' + (error && error.message ? error.message : String(error)));
+        });
+      }, [reload]);
       react.useEffect(() => {
         reload();
         const timer = setInterval(reload, 60000);
@@ -181,7 +220,10 @@ window.__ModuleLoader__.load({
           title: '网络 / 隧道监视器：' + detail,
           style: chipStyle,
         }, [dot(status.color, detail), react.createElement('span', { key: 't' }, '网络 ' + status.text)]),
-        open ? react.createElement(Panel, { key: 'panel', state: state, reload: reload, close: () => setOpen(false) }) : null,
+        open ? react.createElement(Panel, {
+          key: 'panel', state: state, reload: reload, close: () => setOpen(false),
+          startService: startService, busy: busy, note: note,
+        }) : null,
       ]);
     }
 
