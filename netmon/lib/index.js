@@ -31,6 +31,21 @@ const CACHE_MS = 8000
 // deployment obtains and installs its certificate is its own business.
 // Fingerprint seen last time on a self-signed tunnel; a change is worth flagging.
 let knownFingerprint = ''
+/* 「掉线自动拉起」的开关存这里（默认开）。一个小 JSON 文件，不引入新的框架 API。 */
+const STATE_FILE = path.join(os.homedir(), '.dsh', 'netmon-state.json')
+function readState() {
+  try { return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) || {} } catch { return {} }
+}
+function autoStartEnabled() {
+  return readState().autoStart !== false      /* 没写过 = 默认开 */
+}
+function writeState(next) {
+  try {
+    fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true })
+    fs.writeFileSync(STATE_FILE, JSON.stringify(next, null, 2))
+    return true
+  } catch { return false }
+}
 
 async function getJson(url, ms, init) {
   const controller = new AbortController()
@@ -130,6 +145,14 @@ export class NetMonService extends Service {
         send(200, await this.startService(method === 'start-front' ? 'front' : 'bridge'))
         return
       }
+      /* 面板里的「自动拉起」开关：关掉之后掉线只提示、不自动拉，手动按钮照旧可用。 */
+      if (method === 'set-autostart') {
+        const want = !!(request && request.args && request.args.value === true)
+        const saved = writeState(Object.assign(readState(), { autoStart: want }))
+        this.cache = undefined
+        send(200, { ok: saved, autoStart: autoStartEnabled() })
+        return
+      }
       send(200, { ok: false, reason: 'unknown-method: ' + method })
     } catch (error) {
       send(200, { ok: false, reason: error instanceof Error ? error.message : String(error) })
@@ -213,6 +236,7 @@ export class NetMonService extends Service {
    * 拉起来之后重新探一次，并把"自动拉起过"写进返回值，面板照实显示，不静默。
    */
   async selfHeal(state) {
+    if (!autoStartEnabled()) return state          /* 用户关了自动拉起：只报告，不动手 */
     const now = Date.now()
     this.healAt = this.healAt || {}
     const targets = [
@@ -330,6 +354,7 @@ export class NetMonService extends Service {
       ok: true,
       at: Date.now(),
       tookMs: Date.now() - started,
+      autoStart: autoStartEnabled(),
       bridge, lan, devices, tunnel, cert,
     }
   }

@@ -80,7 +80,16 @@ window.__ModuleLoader__.load({
       blocks.push(react.createElement('div', { key: 'h', style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 } }, [
         react.createElement('strong', { key: 't', style: { fontSize: 13 } }, '网络与隧道'),
         react.createElement('span', { key: 'a' }, [
-          react.createElement('button', { key: 'r', onClick: props.reload, style: Object.assign({}, chipStyle, { padding: '2px 8px' }) }, '重新检测'),
+          /* 掉线自动拉起：默认开。关掉之后掉线只提示，靠「启动桥 / 启动前置」手动拉。 */
+          react.createElement('button', {
+            key: 's',
+            onClick: () => props.setAutoStart(!(s.autoStart !== false)),
+            title: s.autoStart !== false
+              ? '开着：桥或隧道前置掉线时宿主会自动把它们拉起来（每项 60 秒最多一次）。点一下关掉。'
+              : '关着：掉线只报告、不自动拉起；需要时点「启动桥 / 启动前置」。点一下打开。',
+            style: Object.assign({}, chipStyle, { padding: '2px 8px', color: s.autoStart !== false ? '#34d399' : '#9ca3af' }),
+          }, '自动拉起 ' + (s.autoStart !== false ? '开' : '关')),
+          react.createElement('button', { key: 'r', onClick: props.reload, style: Object.assign({}, chipStyle, { padding: '2px 8px', marginLeft: 6 }) }, '重新检测'),
           react.createElement('button', { key: 'c', onClick: props.close, style: Object.assign({}, chipStyle, { padding: '2px 8px', marginLeft: 6 }) }, '关闭'),
         ]),
       ]));
@@ -191,6 +200,12 @@ window.__ModuleLoader__.load({
       const reload = react.useCallback(() => {
         rpc('status', {}).then((r) => setState(r && typeof r === 'object' ? r : { ok: false, reason: 'bad response' }));
       }, []);
+      const setAutoStart = react.useCallback((value) => {
+        rpc('set-autostart', { value: value }).then((r) => {
+          setNote('自动拉起已' + ((r && r.autoStart === true) ? '打开' : '关闭'));
+          reload();
+        }).catch((error) => setNote('开关写入失败：' + (error && error.message ? error.message : String(error))));
+      }, [reload]);
       /* 拉起服务：宿主会等它真的应答再回话，这里把结果原样显示出来（成功/已运行/失败原因） */
       const startService = react.useCallback((which) => {
         const label = which === 'front' ? '隧道前置' : '接入桥';
@@ -233,7 +248,7 @@ window.__ModuleLoader__.load({
         }, [dot(status.color, detail), react.createElement('span', { key: 't' }, '网络 ' + status.text)]),
         open ? react.createElement(Panel, {
           key: 'panel', state: state, reload: reload, close: () => setOpen(false),
-          startService: startService, busy: busy, note: note,
+          startService: startService, setAutoStart: setAutoStart, busy: busy, note: note,
         }) : null,
       ]);
     }
