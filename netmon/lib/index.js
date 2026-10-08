@@ -198,9 +198,41 @@ export class NetMonService extends Service {
   async collect() {
     const now = Date.now()
     if (this.cache !== undefined && now - this.cache.at < CACHE_MS) return this.cache.value
-    const value = await this.probe()
+    let value = await this.probe()
+    value = await this.selfHeal(value)
     this.cache = { at: now, value }
     return value
+  }
+
+  /**
+   * 掉线就自动拉起（每项 60 秒最多试一次）。
+   *
+   * 为什么放在这里而不是只靠 WSH 看门狗：这台机器上 WScript.Shell.Run 会**静默失败**
+   * （退出码 0、无异常、进程没起来、服务日志一行都没有），重启电脑那次就是这么躺平的。
+   * 而宿主就在 harness 进程里，用 node 起 node —— 实测 854 ms 就能应答，是这里最可靠的路。
+   * 拉起来之后重新探一次，并把"自动拉起过"写进返回值，面板照实显示，不静默。
+   */
+  async selfHeal(state) {
+    const now = Date.now()
+    this.healAt = this.healAt || {}
+    const targets = [
+      { key: 'bridge', label: '接入桥', down: !(state.bridge && state.bridge.up === true) },
+      {
+        key: 'front', label: '隧道前置',
+        down: !!(state.tunnel && state.tunnel.configured === true && state.tunnel.up !== true),
+      },
+    ]
+    const healed = []
+    for (const t of targets) {
+      if (!t.down) continue
+      if (this.healAt[t.key] !== undefined && now - this.healAt[t.key] < 60000) continue
+      this.healAt[t.key] = now
+      const r = await this.startService(t.key).catch((error) => ({ ok: false, error: String(error) }))
+      healed.push({ label: t.label, ok: r.ok === true, already: r.already === true, waitedMs: r.waitedMs || 0, error: r.error || '' })
+      if (r.ok === true) state = await this.probe()
+    }
+    if (healed.length > 0) state.autoStart = healed
+    return state
   }
 
   async probe() {

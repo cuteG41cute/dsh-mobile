@@ -167,6 +167,17 @@ window.__ModuleLoader__.load({
       if (props.note) {
         blocks.push(react.createElement('div', { key: 'note', style: { marginTop: 8, color: 'var(--dsw-static-deepseek-500, #4d6bfe)' } }, props.note));
       }
+      /* 宿主自己动手拉起过的，照实说出来 */
+      const healed = Array.isArray(s.autoStart) ? s.autoStart : [];
+      for (let i = 0; i < healed.length; i++) {
+        const h = healed[i];
+        blocks.push(react.createElement('div', {
+          key: 'heal' + i,
+          style: { marginTop: 6, color: h.ok ? '#22c55e' : 'var(--dsw-alias-state-error-primary, #d92d20)' },
+        }, h.ok
+          ? ('已自动拉起 ' + h.label + (h.waitedMs ? '（' + h.waitedMs + ' ms）' : ''))
+          : ('自动拉起 ' + h.label + ' 失败：' + (h.error || 'unknown'))));
+      }
       blocks.push(react.createElement('div', { key: 'f', style: { marginTop: 10, color: 'var(--dsw-alias-label-tertiary, #8a8a8a)' } },
         '检测于 ' + new Date(s.at).toLocaleTimeString() + ' · 用时 ' + s.tookMs + ' ms'));
       return react.createElement('div', { style: cardStyle }, blocks);
