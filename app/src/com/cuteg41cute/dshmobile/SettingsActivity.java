@@ -19,6 +19,9 @@ import android.widget.Toast;
 /** 原生设置页：服务器地址（可扫码）、屏幕常亮、快捷操作、关于。 */
 public class SettingsActivity extends Activity {
 
+    /** 自动扫码页的请求码（与 QrScan 的两个互不冲突）。 */
+    private static final int REQ_AUTO_SCAN = 4303;
+
     private SharedPreferences prefs;
     private EditText editUrl;
     private EditText editAlt;
@@ -45,13 +48,18 @@ public class SettingsActivity extends Activity {
         switchKeepOn.setChecked(prefs.getBoolean(MainActivity.KEY_KEEP_ON, false));
         refreshAbout();
 
-        // 扫码连接：扫电脑上「设置 → 手机端」里的二维码，自动填地址并重连
+        // 扫码连接：进自动扫码页（相机预览 + 连续识别，认出即回填）
         findViewById(R.id.btn_scan).setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
                 try {
-                    startActivityForResult(QrScan.cameraIntent(SettingsActivity.this), QrScan.REQUEST_CAMERA);
+                    startActivityForResult(new Intent(SettingsActivity.this, ScanActivity.class), REQ_AUTO_SCAN);
                 } catch (Exception error) {
-                    Toast.makeText(SettingsActivity.this, R.string.scan_no_camera, Toast.LENGTH_SHORT).show();
+                    /* 没有相机 / 打不开 → 退回旧的「系统相机拍一张」 */
+                    try {
+                        startActivityForResult(QrScan.cameraIntent(SettingsActivity.this), QrScan.REQUEST_CAMERA);
+                    } catch (Exception inner) {
+                        Toast.makeText(SettingsActivity.this, R.string.scan_no_camera, Toast.LENGTH_SHORT).show();
+                    }
                 }
             }
         });
@@ -95,6 +103,12 @@ public class SettingsActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (resultCode != RESULT_OK) return;
+        if (requestCode == REQ_AUTO_SCAN) {
+            String scanned = data == null ? null : data.getStringExtra(ScanActivity.EXTRA_RESULT);
+            if (scanned == null) { Toast.makeText(this, R.string.scan_failed, Toast.LENGTH_LONG).show(); return; }
+            acceptScanned(scanned);
+            return;
+        }
         if (requestCode != QrScan.REQUEST_CAMERA && requestCode != QrScan.REQUEST_GALLERY) return;
         Uri uri = requestCode == QrScan.REQUEST_CAMERA ? QrScan.lastCaptureUri() : null;
         if (uri == null && data != null) uri = data.getData();
@@ -103,6 +117,11 @@ public class SettingsActivity extends Activity {
             Toast.makeText(this, R.string.scan_failed, Toast.LENGTH_LONG).show();
             return;
         }
+        acceptScanned(text);
+    }
+
+    /** 扫码（自动或拍照）拿到文本后的统一收尾：解析 → 填入 → 保存 → 提示 → 结束。 */
+    private void acceptScanned(String text) {
         String url = addressFrom(text);
         if (url == null) {
             Toast.makeText(this, getString(R.string.scan_not_address, text), Toast.LENGTH_LONG).show();

@@ -1,15 +1,16 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.cuteg41cute.dshmobile"
-    android:versionCode="14"
-    android:versionName="1.3.8">
+    android:versionCode="15"
+    android:versionName="1.3.9">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
-    <!-- 扫码用系统相机 App 完成，本应用自己不需要 CAMERA 权限；没相机的设备也能装 -->
+    <!-- 鑷姩鎵爜瑕佽嚜宸卞紑鐩告満棰勮锛圓ndroid 6+ 闇€瑕佽繍琛屾椂鎺堟潈锛夈€?         娌＄浉鏈虹殑璁惧鐓ф牱鑳借锛氭壂鐮侀〉浼氶€€鍒般€岀敤绯荤粺鐩告満鎷嶄竴寮犮€嶆垨鎵嬭緭鍦板潃銆?-->
+    <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
@@ -40,5 +41,14 @@
             android:exported="false"
             android:label="@string/settings_title"
             android:windowSoftInputMode="adjustResize" />
+
+        <!-- 鑷姩鎵爜锛氱浉鏈洪瑙?+ 杩炵画瑙ｇ爜锛岃鍑哄氨鍥炲～骞惰繑鍥?-->
+        <activity
+            android:name=".ScanActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode|density"
+            android:exported="false"
+            android:label="@string/settings_scan"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme" />
     </application>
 </manifest>

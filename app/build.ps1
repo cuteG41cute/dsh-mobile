@@ -1,4 +1,4 @@
-﻿# build.ps1 - build the DSH Mobile APK using the Android SDK tools directly (no Gradle, no AndroidX).
+# build.ps1 - build the DSH Mobile APK using the Android SDK tools directly (no Gradle, no AndroidX).
 # ASCII-only on purpose (works in both Windows PowerShell 5.1 and PowerShell 7).
 param(
     [string]$SdkRoot = "$env:LOCALAPPDATA\Android\Sdk",
@@ -75,8 +75,14 @@ $sources += (Get-ChildItem $gen -Recurse -Filter *.java | ForEach-Object { $_.Fu
 Invoke-Tool $javac (@("-encoding", "UTF-8", "--release", "11", "-classpath", $javacPath, "-d", $classesDir) + $sources)
 
 Write-Host "[4/7] d8 (dex)"
-$classFiles = (Get-ChildItem $classesDir -Recurse -Filter *.class | ForEach-Object { $_.FullName })
-Invoke-Tool $d8 (@("--release", "--lib", $androidJar, "--min-api", "$MinSdk", "--output", $dexDir) + $classFiles + $libsJars)
+# 把 class 先打成一个 jar 再交给 d8：直接列每个 .class 会在类变多时撑爆 Windows 命令行
+# （实测 2026-10-15 加了 ScanActivity 之后就是这句 "The command line is too long." 挂掉的）。
+$classJar = Join-Path $build "classes.jar"
+$jar = Join-Path $JdkHome "bin\jar.exe"
+if (-not (Test-Path $jar)) { throw "required tool missing: $jar" }
+if (Test-Path $classJar) { Remove-Item $classJar -Force }
+Invoke-Tool $jar @("cf", $classJar, "-C", $classesDir, ".")
+Invoke-Tool $d8 (@("--release", "--lib", $androidJar, "--min-api", "$MinSdk", "--output", $dexDir, $classJar) + $libsJars)
 
 Write-Host "[5/7] package apk (resources + classes.dex)"
 $repacked = Join-Path $build "app-raw.apk"
