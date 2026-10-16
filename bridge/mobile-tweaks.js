@@ -604,9 +604,14 @@
  * 1) 文件行的 ⤓：交给桥的 /__file（Android 的 DownloadListener 转交系统下载器）。
  * 2) 预览：产品按**原始尺寸**渲染、且没有缩放入口。这里不加任何常驻控件
  *    （常驻控件会挡住输入框）——改成**双指捏合缩放**（10%–2000%）+ **长按菜单**
- *    （下载到手机 / 适应宽度 / 1:1）。下载目标路径直接从
- *    [data-document-preview] 上的 dsh-resource://file/session/<sid>/<path> 解析，
- *    所以从会话里点开的预览也能下载，不依赖文件树。
+ *    （下载到手机 / 适应宽度 / 1:1）。
+ *    **只对图片生效**：图片是 [data-image-preview] > img；PDF 是 [data-pdf-page] > canvas，
+ *    产品自己用 `width:min(var(--pdf-page-width),100%)` 排版、canvas.width 是设备像素后备缓冲，
+ *    套上图片那套缩放会把整页撑成 dpr 倍、分页排版全乱 —— 所以 PDF 完全保持产品原样，
+ *    长按菜单也只留「下载到手机」。
+ *    下载目标路径直接从 [data-document-preview] 上的
+ *    dsh-resource://file/session/<sid>/<path> 解析，所以从会话里点开的预览也能下载，
+ *    不依赖文件树。
  * ---------------------------------------------------------------- */
 (function () {
   var MIN = 0.1, MAX = 20;
@@ -616,18 +621,36 @@
 
   function list(sel, root) { return [].slice.call((root || document).querySelectorAll(sel)); }
   function previewRoot() { return document.querySelector("[data-document-preview]"); }
+  /* ---------- 先分清预览的是图片还是 PDF ----------
+   * 图片：[data-image-preview] > img（产品按原始尺寸撑开）
+   * PDF ：[data-pdf-page] > canvas（一页一个；canvas.width 是**设备像素**后备缓冲，
+   *       显示宽度由产品 CSS `width:min(var(--pdf-page-width),100%)` 决定 —— 两个量纲）。
+   * 缩放（适宽 / 捏合 / 1:1）只对图片有意义：对 PDF 套用等于把内联 width 写成设备像素值，
+   * 整页会被撑成 dpr 倍、排版全乱。所以先判形态，PDF 一律不进缩放管线。 */
+  function visibleSize(el) {
+    if (!el || el.offsetParent === null) return null;
+    var r = el.getBoundingClientRect();
+    return r.width > 40 && r.height > 40 ? r : null;
+  }
+  function anyVisible(nodes) {
+    for (var i = 0; i < nodes.length; i++) if (visibleSize(nodes[i])) return true;
+    return false;
+  }
+  function pdfNodes(root) { return list("[data-pdf-page]", root || previewRoot() || document); }
+  function imageNodes(root) { return list("[data-image-preview] img", root || previewRoot() || document); }
+  /** "" = 没有预览内容；"image" = 图片（可缩放）；"pdf" = PDF（产品原样，一概不碰） */
+  function previewKind() {
+    var root = previewRoot();
+    if (!root) return "";
+    if (anyVisible(pdfNodes(root))) return "pdf";
+    return anyVisible(imageNodes(root)) ? "image" : "";
+  }
+  /** 参与缩放的元素。PDF 返回空数组 —— 这是「只缩放图片」的判据本身。 */
   function media() {
     var root = previewRoot();
     if (!root) return [];
-    return list("[data-image-preview] img", root).concat(list("[data-pdf-page] canvas", root));
-  }
-  function mediaVisible() {
-    var nodes = media();
-    for (var i = 0; i < nodes.length; i++) {
-      var r = nodes[i].getBoundingClientRect();
-      if (r.width > 40 && r.height > 40 && nodes[i].offsetParent !== null) return true;
-    }
-    return false;
+    if (anyVisible(pdfNodes(root))) return [];
+    return imageNodes(root);
   }
   function naturalWidth(el) {
     if (el.tagName === "IMG") return el.naturalWidth || el.width || 0;
@@ -642,6 +665,7 @@
     return nw > 0 && shown > 0 ? shown / nw : 1;
   }
   function setFit() {
+    if (previewKind() !== "image") return;        /* PDF / 无内容：不插手 */
     scale = null;
     var nodes = media();
     for (var i = 0; i < nodes.length; i++) {
@@ -652,6 +676,7 @@
     if (document.body.className.indexOf("dshm-pv-fit") < 0) document.body.classList.add("dshm-pv-fit");
   }
   function setScale(next) {
+    if (previewKind() !== "image") return;
     scale = Math.min(MAX, Math.max(MIN, next));
     document.body.classList.remove("dshm-pv-fit");
     var nodes = media();
@@ -762,6 +787,7 @@
   function showMenu(x, y) {
     hideMenu();
     var path = currentPath();
+    var zoomable = previewKind() === "image";     /* 只有图片才给缩放两项 */
     var box = document.createElement("div");
     box.id = "dshm-pv-menu";
     var mk = function (text, handler, disabled) {
@@ -774,8 +800,10 @@
       return b;
     };
     mk("\u2913  下载到手机", function () { download(path, baseName(path)); }, !path);
-    mk("适应宽度", function () { setFit(); });
-    mk("1:1 原始大小", function () { setScale(1); });
+    if (zoomable) {                                /* PDF：只留下载，缩放两项不出现 */
+      mk("适应宽度", function () { setFit(); });
+      mk("1:1 原始大小", function () { setScale(1); });
+    }
     document.body.appendChild(box);
     var rect = box.getBoundingClientRect();
     box.style.left = Math.max(6, Math.min(x - 20, window.innerWidth - rect.width - 6)) + "px";
@@ -792,8 +820,11 @@
   }
   document.addEventListener("touchstart", function (event) {
     if (!inPreview(event.target)) return;
+    var kind = previewKind();
+    if (!kind) return;
     if (event.touches.length === 2) {
       window.clearTimeout(pressTimer);
+      if (kind !== "image") return;              /* PDF：双指不缩放，也不拦产品/浏览器的手势 */
       pinch = { start: distance(event.touches), scale: currentScale() };
       event.preventDefault();
       return;
@@ -830,14 +861,31 @@
     try { if (navigator.maxTouchPoints > 0) return true; } catch (error) { /* 老内核没有这个属性 */ }
     return window.innerWidth <= 720;
   }
+  function clearFit() {
+    if (document.body.className.indexOf("dshm-pv-fit") >= 0) document.body.classList.remove("dshm-pv-fit");
+  }
   function tick() {
     markRows();
     if (!mobileish()) {
-      if (document.body.className.indexOf("dshm-pv-fit") >= 0) document.body.classList.remove("dshm-pv-fit");
+      clearFit();
       if (menuEl) hideMenu();
       return;
     }
-    var has = !!previewRoot() && mediaVisible();
+    var kind = previewKind();
+    if (kind === "pdf") {
+      /* PDF：产品原样 —— 摘掉可能残留的「适宽」类、丢掉图片那边的倍数，
+         但**别**关长按菜单（PDF 的菜单只剩「下载到手机」，还有用）。 */
+      scale = null;
+      clearFit();
+      return;
+    }
+    var has = kind === "image";
+    if (has && scale !== null) {
+      /* 倍数只对「挂着我们写的内联宽度」的那个节点有效：产品重渲染 / 换了一张图以后
+         节点是新的（内联样式随之消失），此时旧的倍数已经没有任何意义 —— 丢掉它，重新适宽。 */
+      var nodes = media();
+      if (!nodes.length || !nodes[0].style.width) scale = null;
+    }
     if (has && scale === null && document.body.className.indexOf("dshm-pv-fit") < 0) setFit();
     if (!has && menuEl) hideMenu();
   }

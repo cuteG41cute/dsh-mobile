@@ -714,4 +714,46 @@ Windows 上同一个网卡会有 1 条稳定地址 + 若干条 RFC 4941 临时�
 **配套诊断脚本**（`_checkpoints/_diag/mobile-bridge/`）：`bytes-probe.cjs`（整页字节与渲染检查）、`req-log.cjs`（逐条请求的编码/体积）、
 `ae-matrix.cjs`、`br-test.cjs`、`bundle-scan.cjs`、`node-rtt.cjs`（节点 RTT 排名）、`wan-speed.cjs` / `wan-dl.cjs`（外网延迟与吞吐）、`prune-devices.cjs`（清设备台账）。
 
+### 9.12 预览缩放：只对图片生效，PDF 保持产品排版（2026-10-16）
 
+右边栏预览的「适宽 + 双指捏合 + 长按菜单」**只作用于图片**。产品在预览区用两个属性区分内容：
+
+| 内容 | DOM | 产品自己的尺寸来源 |
+| --- | --- | --- |
+| 图片 | `[data-image-preview] > img` | 按**原始尺寸**撑开（`frame{width:max-content}`）⇒ 需要我们去夹住 |
+| PDF | `[data-pdf-page] > canvas`（一页一个） | 产品自己排：`canvas{width:min(var(--pdf-page-width),100%)}`；而 `canvas.width` 是 **DPR 倍的后备缓冲**（A4@96/72、DPR2 ⇒ CSS 793px / 缓冲 1586px） |
+
+**之前的问题**：缩放脚本把这两种内容混在同一个 `media()` 列表里、用同一套「自然宽度」口径算倍数。
+PDF 的 `canvas.width`（1586）被当成了 CSS 宽度 ⇒ 捏合一次就写 `style.width:1116px`（= 1586 × 倍数），
+页面被撑出面板、`.E0GbtG_page{overflow-x:hidden}` 直接裁掉，而且顺手摘掉了「适宽」类 ⇒ PDF 再也回不到产品排版。
+（实测：产品原样 canvas 372×526.56；旧版捏合后 1116×1579.7。）
+
+**现在的做法**：先判形态，PDF 完全走产品原样。
+
+```
+previewKind()         "" / "image" / "pdf"（按可见性判定，作用域在 [data-document-preview] 内）
+media()               PDF 时返回 []          ← 「只缩放图片」的判据本身
+setFit() / setScale() 非 image 直接 return（不写任何内联样式、不加 body 类）
+touchstart 双指分支   非 image 直接 return（不 preventDefault，手势还给产品/浏览器）
+长按菜单              PDF 只留「下载到手机」；图片仍是三项
+tick()                见到 PDF 就摘掉残留的 dshm-pv-fit，并丢掉图片那边的倍数
+```
+
+顺带修掉一个老毛病：倍数只对「挂着我们写的内联宽度」的那个节点有效 —— 产品重渲染或换了一张图之后
+节点是新的（内联样式随之消失），`tick()` 发现内联宽度不在了就丢掉旧倍数、重新适宽
+（否则新图会停在原始尺寸，且第一次捏合会跳一下）。
+
+实测（412×915、DPR2、无头 Edge、CDP 真实触摸事件；产品 CSS 模块与 DOM 结构逐字复刻）：
+
+| 检查 | 旧版（发布中） | 新版 |
+| --- | --- | --- |
+| PDF 静止几何 | 372×526.56（＝产品原样，靠 CSS `max-width:100%` 兜住） | 372×526.56，**无任何内联样式** |
+| PDF 双指捏合后 | `style.width:1116px`、被裁、`dshm-pv-fit` 被摘掉 | 内联样式全空，几何仍 372×526.56 |
+| PDF 双指手势 | 被 `preventDefault` 吃掉 | 未被拦（`defaultPrevented=false`），手势还给产品 |
+| PDF 长按菜单 | 3 项（含对 PDF 无意义的「适应宽度 / 1:1」） | 1 项（下载到手机） |
+| 图片（回归） | — | 适宽 396px（＝412−16）、frame 夹到 412、捏合写 1188px ＝ 2000×0.594 |
+| 图片长按菜单 | — | 3 项（下载 / 适应宽度 / 1:1） |
+| 图片 → PDF 切换 | — | 适宽类被摘掉、canvas 无内联样式、几何＝产品原样 |
+| 真实页面（桥 8099） | — | 注入脚本执行（`window.__dshmBack` 可用）、零未捕获异常 |
+
+复现脚本：`.tmp/pv-kind-verify.mjs`（同一页面里对旧版/新版各跑一遍，做 before/after 对照）。
