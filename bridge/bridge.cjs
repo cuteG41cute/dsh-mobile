@@ -148,6 +148,60 @@ function needsAccessToken(req) {
   if (String(req.url || "").indexOf("/.well-known/acme-challenge/") >= 0) return false;
   return isProxiedRequest(req) || isPublicV6Request(req);
 }
+/* -------------------- 上游 authority 的自动挑选 --------------------
+ * harness 有一条来源栅栏：Host 必须是回环或它启动时用 --trusted-host 登记的地址，
+ * 而且**只在启动时登记一次**。换 Wi-Fi / 开热点之后本机网卡 IP 变了，而 harness 的名单没变，
+ * 于是桥按「第一块网卡」折算出来的 authority 会被 harness 回 403 —— 表现是页面外壳能加载
+ * （HTML 不过栅栏），但所有 /api 与 WebSocket 全 403：会话列表空、一直「立即重连」。
+ * （2026-10-17 实测：harness 名单里是 10.22.49.83，而当时的 WLAN 是 172.24.156.195 → 403。）
+ *
+ * 所以桥自己挑一个 harness **真的认** 的地址：逐一用 /api 探一下
+ *   · 可信  → 401（要求登录态）
+ *   · 不可信 → 403（来源栅栏）
+ * 挑到就缓存，60 秒复查一次。这样换网络不用重启 harness。
+ * ------------------------------------------------------------------ */
+let trustedAuthority = "";
+let trustedAuthorityCheckedAt = 0;
+function authorityCandidates() {
+  const list = [];
+  for (const host of qrHosts()) {
+    if (host.address) list.push(host.address + ":" + LISTEN_PORT);
+  }
+  list.push("127.0.0.1:" + LISTEN_PORT);
+  return list;
+}
+function probeAuthorityTrusted(authority, done) {
+  let finished = false;
+  const finish = function (ok) { if (!finished) { finished = true; done(ok); } };
+  const probe = http.request({
+    hostname: TARGET.hostname, port: TARGET.port,
+    path: "/api/remote.mux", method: "GET", headers: { host: authority },
+  }, function (res) {
+    res.resume();
+    finish(res.statusCode !== 403);      /* 403 = 栅栏拒了；401/200 = 它是被信任的 */
+  });
+  probe.on("error", function () { finish(false); });
+  probe.setTimeout(2500, function () { probe.destroy(); finish(false); });
+  probe.end();
+}
+function refreshTrustedAuthority() {
+  trustedAuthorityCheckedAt = Date.now();
+  const candidates = authorityCandidates();
+  let index = 0;
+  const next = function () {
+    if (index >= candidates.length) return;
+    const authority = candidates[index++];
+    probeAuthorityTrusted(authority, function (ok) {
+      if (!ok) { next(); return; }
+      if (trustedAuthority !== authority) {
+        trustedAuthority = authority;
+        logLine("上游 authority → " + authority + "（harness 信任这个来源）");
+      }
+    });
+  };
+  next();
+}
+
 /** 转发给上游用的 authority：域名（隧道）统一折算成受信任的局域网地址，回环/IP 保持原样。 */
 function upstreamAuthority(req) {
   const host = req.headers.host || "";
@@ -155,6 +209,7 @@ function upstreamAuthority(req) {
   // IPv4 字面量原样（局域网地址本来就在 harness 的受信任名单里）；
   // 域名（隧道）与 IPv6 字面量都要折算，否则过不了 harness 的来源栅栏。
   if (isIpLiteralAuthority(host) && String(host).indexOf(":") < 0) return host;
+  if (trustedAuthority) return trustedAuthority;
   const hosts = qrHosts();
   const lan = hosts.length ? hosts[0].address : "127.0.0.1";
   return lan + ":" + LISTEN_PORT;
@@ -2019,4 +2074,7 @@ server.listen(LISTEN_PORT, LISTEN_HOST, function () {
   process.stdout.write("[bridge] 手机打开（同一 Wi-Fi）：\n");
   for (const url of lanUrls()) process.stdout.write("         " + url + "\n");
   process.stdout.write("[bridge] 安全提示：该端口等价于本机 shell 权限，勿暴露到公网。\n");
+  /* 先挑一个 harness 真正信任的上游地址，再每 60 秒复查一次（换网后不必重启 harness） */
+  refreshTrustedAuthority();
+  setInterval(refreshTrustedAuthority, 60000);
 });
